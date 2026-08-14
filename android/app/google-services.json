@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "474037018699",
+    "project_id": "talkiepal-80191",
+    "storage_bucket": "talkiepal-80191.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:474037018699:android:b85a8528272d731939edce",
+        "android_client_info": {
+          "package_name": "com.example.talkiepal"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDFlqcIHBFaXd2rRWeAE1_-hjyki79axgY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

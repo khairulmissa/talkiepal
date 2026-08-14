@@ -1,0 +1,50 @@
+name: talkiepal
+description: "A new Flutter project."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.10.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+  google_fonts: ^6.2.1
+  firebase_core: ^4.9.0
+  firebase_auth: ^6.5.1
+  google_sign_in: ^7.2.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - lib/assets/images/
+    - lib/assets/images/alphabets/
+    - lib/assets/images/numbers/
+    - lib/assets/images/colors/
+    - lib/assets/images/shapes/
+    - lib/assets/images/animals/
+    - lib/assets/images/fruits/
+    - lib/assets/images/bodyparts/
+    - lib/assets/images/clothes/
+    - lib/assets/images/vehicles/
+    - lib/assets/images/morning_routine/
+    - lib/assets/images/feelings/
+    - lib/assets/images/things_i_like/
+    #- lib/assets/images/kid_profile/
+    #- lib/assets/images/kids/
+    #- lib/assets/images/kids/
+    #- lib/assets/images/logo/
+    #- lib/assets/images/outlook/
+    #- lib/assets/images/parent/
+    #- lib/assets/images/robot/
+    #- lib/assets/images/google/
