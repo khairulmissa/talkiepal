@@ -426,7 +426,7 @@ class _PracticeDailyRoutinePageState extends State<PracticeDailyRoutinePage> {
                               children: [
                                 const Text('YOU SAID:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
                                 const SizedBox(height: 5),
-                                Text('$_userAnswer', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Color(0xFF6BCB77))),
+                                Text(_userAnswer, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Color(0xFF6BCB77))),
                               ],
                             ),
                           ),

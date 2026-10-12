@@ -618,7 +618,7 @@ class _PracticeAboutMePageState extends State<PracticeAboutMePage> {
                                 ),
                                 const SizedBox(height: 5),
                                 Text(
-                                  '$_userAnswer',
+                                  _userAnswer,
                                   style: const TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w500,

@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:firebase_auth/firebase_auth.dart';  // ADD THIS
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
+
 import 'login_screen.dart';
+import 'choose_role_screen.dart';
+import 'user_profile_service.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -11,12 +16,15 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
+  static const String googleWebClientId =
+      '474037018699-a247c8o37ul98a1l87mis96d3fq9icku.apps.googleusercontent.com';
+
   final formKey = GlobalKey<FormState>();
   final emailController = TextEditingController();
   final usernameController = TextEditingController();
   final passwordController = TextEditingController();
   final rewritePasswordController = TextEditingController();
-  bool isLoading = false;  // ADD THIS
+  bool isLoading = false;
 
   @override
   void dispose() {
@@ -27,151 +35,200 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
+  void showMessage(String message, {bool error = true}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: error ? Colors.red : Colors.green,
+      ),
+    );
+  }
+
+  void goToRoleScreen() {
+    if (!mounted) return;
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const ChooseRoleScreen()),
+      (route) => false,
+    );
+  }
+
+  String firebaseError(FirebaseAuthException e) {
+    switch (e.code) {
+      case 'email-already-in-use':
+        return 'This email is already registered. Please sign in.';
+      case 'weak-password':
+        return 'Please use a stronger password.';
+      case 'invalid-email':
+        return 'Please enter a valid email address.';
+      case 'account-exists-with-different-credential':
+        return 'This email uses another sign-in method. Sign in with that method first.';
+      case 'network-request-failed':
+        return 'Network error. Check your internet connection.';
+      case 'too-many-requests':
+        return 'Too many attempts. Please try again later.';
+      default:
+        return e.message ?? 'Authentication failed. Please try again.';
+    }
+  }
+
+  Future<void> register() async {
+    if (isLoading || !(formKey.currentState?.validate() ?? false)) return;
+    setState(() => isLoading = true);
+    try {
+      final result = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        email: emailController.text.trim(),
+        password: passwordController.text,
+      );
+      await result.user?.updateDisplayName(usernameController.text.trim());
+      if (result.user != null) {
+        await UserProfileService.syncUser(result.user!, username: usernameController.text);
+      }
+      // Firebase signs in the new user automatically after registration.
+      goToRoleScreen();
+    } on FirebaseAuthException catch (e) {
+      showMessage(firebaseError(e));
+    } catch (e) {
+      showMessage('Registration failed: $e');
+    } finally {
+      if (mounted) setState(() => isLoading = false);
+    }
+  }
+
+  Future<void> registerWithGoogle() async {
+    if (isLoading) return;
+    setState(() => isLoading = true);
+    try {
+      final googleSignIn = GoogleSignIn.instance;
+      await googleSignIn.initialize(serverClientId: googleWebClientId);
+      final googleUser = await googleSignIn.authenticate();
+      final googleAuth = googleUser.authentication;
+      final idToken = googleAuth.idToken;
+      if (idToken == null) {
+        throw StateError('Google did not return an ID token. Check OAuth configuration.');
+      }
+      final credential = GoogleAuthProvider.credential(idToken: idToken);
+      final signedIn = await FirebaseAuth.instance.signInWithCredential(credential);
+      if (signedIn.user != null) {
+        await UserProfileService.syncUser(signedIn.user!);
+      }
+      goToRoleScreen();
+    } on FirebaseAuthException catch (e) {
+      showMessage(firebaseError(e));
+    } on GoogleSignInException catch (e) {
+      if (e.code != GoogleSignInExceptionCode.canceled) {
+        showMessage('Google sign-in failed: $e');
+      }
+    } catch (e) {
+      showMessage('Google sign-in failed: $e');
+    } finally {
+      if (mounted) setState(() => isLoading = false);
+    }
+  }
+
+  Future<void> registerWithFacebook() async {
+    if (isLoading) return;
+    setState(() => isLoading = true);
+    try {
+      final result = await FacebookAuth.instance.login(
+        permissions: ['public_profile', 'email'],
+      );
+      if (result.status == LoginStatus.cancelled) return;
+      if (result.status != LoginStatus.success || result.accessToken == null) {
+        throw StateError(result.message ?? 'Facebook sign-in was not completed.');
+      }
+      final credential = FacebookAuthProvider.credential(
+        result.accessToken!.tokenString,
+      );
+      final signedIn = await FirebaseAuth.instance.signInWithCredential(credential);
+      if (signedIn.user != null) {
+        await UserProfileService.syncUser(signedIn.user!);
+      }
+      goToRoleScreen();
+    } on FirebaseAuthException catch (e) {
+      showMessage(firebaseError(e));
+    } catch (e) {
+      showMessage('Facebook sign-in failed: $e');
+    } finally {
+      if (mounted) setState(() => isLoading = false);
+    }
+  }
+
   Widget inputBox(
     String hint,
     IconData icon,
     TextEditingController controller, {
     bool obscure = false,
+    TextInputType? keyboardType,
     String? Function(String?)? validator,
   }) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 28),
-      child: SizedBox(
-        height: 58,
-        child: TextFormField(
-          controller: controller,
-          obscureText: obscure,
-          decoration: InputDecoration(
-            prefixIcon: Icon(icon, color: Colors.grey, size: 24),
-            hintText: hint,
-            hintStyle: const TextStyle(color: Colors.grey, fontSize: 16),
-            filled: true,
-            fillColor: Colors.white,
-            contentPadding: EdgeInsets.zero,
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(35),
-              borderSide: const BorderSide(color: Colors.black54),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(35),
-              borderSide: const BorderSide(color: Colors.black),
-            ),
-            errorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(35),
-              borderSide: const BorderSide(color: Colors.red),
-            ),
-            focusedErrorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(35),
-              borderSide: const BorderSide(color: Colors.red),
-            ),
+      child: TextFormField(
+        controller: controller,
+        enabled: !isLoading,
+        keyboardType: keyboardType,
+        obscureText: obscure,
+        autovalidateMode: AutovalidateMode.onUserInteraction,
+        decoration: InputDecoration(
+          prefixIcon: Icon(icon, color: Colors.grey, size: 24),
+          hintText: hint,
+          hintStyle: const TextStyle(color: Colors.grey, fontSize: 16),
+          filled: true,
+          fillColor: Colors.white,
+          contentPadding: const EdgeInsets.symmetric(vertical: 16),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(35),
+            borderSide: const BorderSide(color: Colors.black54),
           ),
-          validator: validator,
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(35),
+            borderSide: const BorderSide(color: Colors.black),
+          ),
+          errorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(35),
+            borderSide: const BorderSide(color: Colors.red),
+          ),
+          focusedErrorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(35),
+            borderSide: const BorderSide(color: Colors.red),
+          ),
         ),
+        validator: validator,
       ),
     );
   }
 
-  Widget star(double size) {
-    return Icon(
-      Icons.star,
-      color: const Color(0xFFFFEFA8),
-      size: size,
-    );
-  }
-
-  Future<void> register() async {
-    if (formKey.currentState!.validate()) {
-      setState(() {
-        isLoading = true;
-      });
-
-      try {
-        // Create user with Firebase
-        UserCredential userCredential = await FirebaseAuth.instance
-            .createUserWithEmailAndPassword(
-          email: emailController.text.trim(),
-          password: passwordController.text.trim(),
-        );
-
-        // Update display name (username)
-        await userCredential.user?.updateDisplayName(usernameController.text.trim());
-        await userCredential.user?.reload();
-
-        if (!mounted) return;
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Register successful! Please login.'),
-            backgroundColor: Colors.green,
-          ),
-        );
-
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const LoginScreen(),
-          ),
-        );
-      } on FirebaseAuthException catch (e) {
-        String message;
-        if (e.code == 'email-already-in-use') {
-          message = 'Email already registered';
-        } else if (e.code == 'weak-password') {
-          message = 'Password is too weak (minimum 6 characters)';
-        } else if (e.code == 'invalid-email') {
-          message = 'Invalid email format';
-        } else {
-          message = 'Registration failed: ${e.message}';
-        }
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message), backgroundColor: Colors.red),
-        );
-      } finally {
-        if (mounted) {
-          setState(() {
-            isLoading = false;
-          });
-        }
-      }
-    }
-  }
+  Widget star(double size) => Icon(
+        Icons.star,
+        color: const Color(0xFFFFEFA8),
+        size: size,
+      );
 
   @override
   Widget build(BuildContext context) {
+    const yellow = Color(0xFFD6D600);
     return Scaffold(
-      resizeToAvoidBottomInset: false,
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        color: const Color(0xFFF8F5F2),
-        child: SafeArea(
-          child: Stack(
-            children: [
-              Positioned(
-                top: -35,
-                right: -30,
-                child: star(180),
-              ),
-              Positioned(
-                left: -45,
-                top: 240,
-                child: star(180),
-              ),
-              Positioned(
-                right: -45,
-                bottom: 15,
-                child: star(200),
-              ),
-              Form(
+      backgroundColor: const Color(0xFFF8F5F2),
+      body: SafeArea(
+        child: Stack(
+          children: [
+            Positioned(top: -35, right: -30, child: star(180)),
+            Positioned(left: -45, top: 240, child: star(180)),
+            Positioned(right: -45, bottom: 15, child: star(200)),
+            SingleChildScrollView(
+              padding: const EdgeInsets.only(bottom: 28),
+              child: Form(
                 key: formKey,
                 child: Column(
                   children: [
                     const SizedBox(height: 75),
                     Text(
                       'REGISTER ACCOUNT',
+                      textAlign: TextAlign.center,
                       style: GoogleFonts.hennyPenny(
-                        color: const Color(0xFFD6D600),
+                        color: yellow,
                         fontSize: 38,
                       ),
                     ),
@@ -180,11 +237,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       'Email',
                       Icons.email_outlined,
                       emailController,
+                      keyboardType: TextInputType.emailAddress,
                       validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Email is required';
-                        }
-                        if (!value.contains('@')) {
+                        final email = value?.trim() ?? '';
+                        if (email.isEmpty) return 'Email is required';
+                        if (!RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(email)) {
                           return 'Enter a valid email';
                         }
                         return null;
@@ -195,12 +252,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       'Username',
                       Icons.person_outline,
                       usernameController,
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Username is required';
-                        }
-                        return null;
-                      },
+                      validator: (value) => (value?.trim().isEmpty ?? true)
+                          ? 'Username is required'
+                          : null,
                     ),
                     const SizedBox(height: 18),
                     inputBox(
@@ -209,12 +263,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       passwordController,
                       obscure: true,
                       validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Password is required';
-                        }
-                        if (value.length < 6) {
-                          return 'Password must be at least 6 characters';
-                        }
+                        if (value == null || value.isEmpty) return 'Password is required';
+                        if (value.length < 6) return 'Password must be at least 6 characters';
                         return null;
                       },
                     ),
@@ -225,12 +275,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       rewritePasswordController,
                       obscure: true,
                       validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please re-write password';
-                        }
-                        if (value != passwordController.text) {
-                          return 'Password does not match';
-                        }
+                        if (value == null || value.isEmpty) return 'Please re-write password';
+                        if (value != passwordController.text) return 'Passwords do not match';
                         return null;
                       },
                     ),
@@ -240,17 +286,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       child: Align(
                         alignment: Alignment.centerRight,
                         child: ElevatedButton(
+                          onPressed: isLoading ? null : register,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFD6D600),
+                            backgroundColor: yellow,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(35),
                             ),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 24,
-                              vertical: 13,
-                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 13),
                           ),
-                          onPressed: isLoading ? null : register,
                           child: isLoading
                               ? const SizedBox(
                                   width: 20,
@@ -272,26 +315,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                       ),
                                     ),
                                     SizedBox(width: 10),
-                                    Icon(
-                                      Icons.arrow_forward,
-                                      color: Colors.white,
-                                      size: 22,
-                                    ),
+                                    Icon(Icons.arrow_forward, color: Colors.white, size: 22),
                                   ],
                                 ),
                         ),
                       ),
                     ),
                     const SizedBox(height: 18),
-                    GestureDetector(
-                      onTap: () {
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const LoginScreen(),
-                          ),
-                        );
-                      },
+                    TextButton(
+                      onPressed: isLoading
+                          ? null
+                          : () => Navigator.pushReplacement(
+                                context,
+                                MaterialPageRoute(builder: (_) => const LoginScreen()),
+                              ),
                       child: const Text(
                         'Already have an account',
                         style: TextStyle(
@@ -305,7 +342,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     const Text(
                       'Or sign up with',
                       style: TextStyle(
-                        color: Color(0xFFD6D600),
+                        color: yellow,
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
                       ),
@@ -314,36 +351,35 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Image.asset(
-                          'lib/assets/images/google.png',
-                          width: 45,
-                          height: 45,
-                          errorBuilder: (context, error, stackTrace) {
-                            return const Icon(Icons.error, size: 45);
-                          },
+                        InkWell(
+                          onTap: isLoading ? null : registerWithGoogle,
+                          borderRadius: BorderRadius.circular(30),
+                          child: Padding(
+                            padding: const EdgeInsets.all(4),
+                            child: Image.asset(
+                              'lib/assets/images/google.png',
+                              width: 45,
+                              height: 45,
+                              errorBuilder: (_, _, _) => const Icon(Icons.error, size: 45),
+                            ),
+                          ),
                         ),
                         const SizedBox(width: 40),
-                        const Icon(
-                          Icons.facebook,
-                          color: Colors.blue,
-                          size: 50,
-                        ),
-                        const SizedBox(width: 40),
-                        Image.asset(
-                          'lib/assets/images/outlook.png',
-                          width: 45,
-                          height: 45,
-                          errorBuilder: (context, error, stackTrace) {
-                            return const Icon(Icons.error, size: 45);
-                          },
+                        InkWell(
+                          onTap: isLoading ? null : registerWithFacebook,
+                          borderRadius: BorderRadius.circular(30),
+                          child: const Padding(
+                            padding: EdgeInsets.all(4),
+                            child: Icon(Icons.facebook, color: Colors.blue, size: 50),
+                          ),
                         ),
                       ],
                     ),
                   ],
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

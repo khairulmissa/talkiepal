@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'parent_home_screen.dart';
-import 'kids_profile_screen.dart';  
+import 'kids_profile_selection_screen.dart';  
 
 
 class ChooseRoleScreen extends StatelessWidget {
@@ -137,7 +137,7 @@ class ChooseRoleScreen extends StatelessWidget {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => const KidsProfileScreen(),  // ← CHANGED to KidsProfileScreen
+                            builder: (context) => const KidsProfileSelectionScreen(),  // ← CHANGED to KidsProfileScreen
                           ),
                         );
                       },

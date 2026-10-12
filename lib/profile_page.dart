@@ -359,7 +359,7 @@ class _ProfilePageState extends State<ProfilePage> {
           Switch(
             value: value,
             onChanged: onChanged,
-            activeColor: const Color(0xFF8B5E9E),
+            activeThumbColor: const Color(0xFF8B5E9E),
             activeTrackColor: const Color(0xFFC9B3E0),
           ),
         ],
