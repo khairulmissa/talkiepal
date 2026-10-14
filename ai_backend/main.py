@@ -1,3 +1,5 @@
+import json
+
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 import requests
@@ -206,6 +208,201 @@ def chat(request: ChatRequest):
         )
 
     except (KeyError, TypeError, ValueError):
+        raise HTTPException(
+            status_code=502,
+            detail="Invalid response from Llama."
+        )
+
+
+# ---------------------------------------------------------------
+# AI-GENERATED PRACTICE EXERCISES
+# ---------------------------------------------------------------
+
+# Rules the model must follow for each level. Only "beginner"
+# is enabled for now; add more levels here when ready.
+LEVEL_RULES = {
+    "beginner": {
+        "description": "children aged 3 to 6 who are just starting to speak English",
+        "word_rule": "ONE single, simple, common English word (no spaces, no hyphens)",
+        "max_words": 1,
+        "max_length": 10,
+    },
+}
+
+# Topics allowed for each level, with a hint to keep the model on track.
+LEVEL_TOPICS = {
+    "beginner": {
+        "Colors": "basic colour names",
+        "Shapes": "basic geometric shapes",
+        "Animals": "common animals children know",
+        "Fruits": "common fruits",
+        "Body Parts": "parts of the human body",
+        "Clothes": "everyday clothing items",
+        "Vehicles": "common vehicles and transport",
+    },
+}
+
+EXERCISE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "exercises": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "word": {"type": "string"},
+                    "emoji": {"type": "string"},
+                },
+                "required": ["word", "emoji"],
+            },
+        }
+    },
+    "required": ["exercises"],
+}
+
+
+class ExerciseRequest(BaseModel):
+    level: str = Field(min_length=1, max_length=40)
+    topic: str = Field(min_length=1, max_length=40)
+    count: int = Field(default=5, ge=1, le=10)
+    exclude: list[str] = Field(default_factory=list, max_length=50)
+
+
+class Exercise(BaseModel):
+    word: str
+    emoji: str
+
+
+class ExerciseResponse(BaseModel):
+    level: str
+    topic: str
+    exercises: list[Exercise]
+
+
+def build_exercise_prompt(level: str, topic: str, count: int, exclude: list[str]) -> str:
+    rules = LEVEL_RULES[level]
+    topic_hint = LEVEL_TOPICS[level][topic]
+    avoid = ", ".join(w.upper() for w in exclude) or "none"
+
+    return f"""
+Create {count} different pronunciation practice words for {rules["description"]}.
+
+TOPIC: {topic} ({topic_hint})
+
+RULES:
+1. Each item is {rules["word_rule"]}.
+2. Every word MUST belong to the topic "{topic}".
+3. Use easy, child-friendly, everyday words only.
+4. No duplicates. Do not use these words: {avoid}.
+5. "word" must be in UPPERCASE letters only.
+6. "emoji" is ONE emoji that shows the word.
+
+Reply with JSON only, for example:
+{{"exercises": [{{"word": "CAT", "emoji": "🐱"}}]}}
+"""
+
+
+def clean_exercises(raw_items, level: str, count: int, exclude: list[str]) -> list[Exercise]:
+    """Keep only valid, unique words that match the level rules."""
+    rules = LEVEL_RULES[level]
+    seen = {w.strip().upper() for w in exclude}
+    cleaned = []
+
+    for item in raw_items:
+        if not isinstance(item, dict):
+            continue
+
+        word = str(item.get("word", "")).strip().upper()
+        emoji = str(item.get("emoji", "")).strip()[:8]
+        parts = word.split()
+
+        if not word or word in seen:
+            continue
+        if len(parts) > rules["max_words"]:
+            continue
+        if not all(part.isalpha() and part.isascii() for part in parts):
+            continue
+        if len(word) > rules["max_length"]:
+            continue
+
+        seen.add(word)
+        cleaned.append(Exercise(word=word, emoji=emoji or "⭐"))
+
+        if len(cleaned) == count:
+            break
+
+    return cleaned
+
+
+@app.post("/generate-exercises", response_model=ExerciseResponse)
+def generate_exercises(request: ExerciseRequest):
+
+    level = request.level.strip().lower()
+    topic = request.topic.strip()
+
+    if level not in LEVEL_RULES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown level: {request.level}"
+        )
+
+    if topic not in LEVEL_TOPICS[level]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown topic for {level}: {request.topic}"
+        )
+
+    try:
+        response = requests.post(
+            OLLAMA_URL,
+            json={
+                "model": MODEL_NAME,
+                "stream": False,
+                "format": EXERCISE_SCHEMA,
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": "You create safe English speaking practice for young children. You always reply with valid JSON only."
+                    },
+                    {
+                        "role": "user",
+                        "content": build_exercise_prompt(level, topic, request.count, request.exclude)
+                    }
+                ],
+                "options": {
+                    # Higher temperature so each session gets new words.
+                    "temperature": 0.9,
+                    "num_predict": 400
+                }
+            },
+            timeout=120
+        )
+
+        response.raise_for_status()
+
+        content = response.json()["message"]["content"]
+        raw_items = json.loads(content)["exercises"]
+        exercises = clean_exercises(raw_items, level, request.count, request.exclude)
+
+        if not exercises:
+            raise ValueError("No valid exercises from Llama")
+
+        return ExerciseResponse(level=level, topic=topic, exercises=exercises)
+
+    except requests.Timeout:
+        raise HTTPException(
+            status_code=504,
+            detail="Llama took too long to respond."
+        )
+
+    except requests.RequestException:
+        raise HTTPException(
+            status_code=503,
+            detail="Cannot connect to Llama. Check Ollama."
+        )
+
+    except (KeyError, TypeError, ValueError):
+        # json.JSONDecodeError is a ValueError
         raise HTTPException(
             status_code=502,
             detail="Invalid response from Llama."
