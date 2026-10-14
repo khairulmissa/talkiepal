@@ -57,6 +57,10 @@ class ExerciseService {
     final recent = _recentWords[key] ?? [];
 
     try {
+      // Quick check first, so the app does not wait long when the
+      // backend cannot be reached (wrong IP, laptop off, other WiFi).
+      await http.get(Uri.parse(ApiConfig.healthUrl)).timeout(const Duration(seconds: 3));
+
       final response = await http
           .post(
             Uri.parse(ApiConfig.generateExercisesUrl),
@@ -68,7 +72,7 @@ class ExerciseService {
               'exclude': recent,
             }),
           )
-          .timeout(const Duration(seconds: 60));
+          .timeout(const Duration(seconds: 45));
 
       if (response.statusCode != 200) {
         throw Exception('Backend error ${response.statusCode}');

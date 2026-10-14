@@ -1,4 +1,6 @@
 import json
+import threading
+import time
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
@@ -12,6 +14,27 @@ app = FastAPI(
 
 OLLAMA_URL = "http://127.0.0.1:11434/api/chat"
 MODEL_NAME = "llama3.2:3b"
+
+# Keep the model loaded in memory so kids do not wait for it to reload.
+OLLAMA_KEEP_ALIVE = "30m"
+
+
+def warm_up_model():
+    """Load the model into memory when the backend starts."""
+    try:
+        requests.post(
+            "http://127.0.0.1:11434/api/generate",
+            json={"model": MODEL_NAME, "keep_alive": OLLAMA_KEEP_ALIVE},
+            timeout=120
+        )
+    except requests.RequestException:
+        pass  # Ollama not running yet; the first request will load it.
+
+
+@app.on_event("startup")
+def start_warm_up():
+    # Run in the background so the server starts immediately.
+    threading.Thread(target=warm_up_model, daemon=True).start()
 
 
 SYSTEM_PROMPT = """
@@ -352,12 +375,15 @@ def generate_exercises(request: ExerciseRequest):
             detail=f"Unknown topic for {level}: {request.topic}"
         )
 
+    started = time.time()
+
     try:
         response = requests.post(
             OLLAMA_URL,
             json={
                 "model": MODEL_NAME,
                 "stream": False,
+                "keep_alive": OLLAMA_KEEP_ALIVE,
                 "format": EXERCISE_SCHEMA,
                 "messages": [
                     {
@@ -386,6 +412,8 @@ def generate_exercises(request: ExerciseRequest):
 
         if not exercises:
             raise ValueError("No valid exercises from Llama")
+
+        print(f"[generate-exercises] {level}/{topic}: {len(exercises)} words in {time.time() - started:.1f}s")
 
         return ExerciseResponse(level=level, topic=topic, exercises=exercises)
 

@@ -8,5 +8,7 @@
 class ApiConfig {
   static const String baseUrl = 'http://10.0.2.2:8000';
 
+  static const String healthUrl = '$baseUrl/health';
+
   static const String generateExercisesUrl = '$baseUrl/generate-exercises';
 }
