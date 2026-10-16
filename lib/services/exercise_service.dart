@@ -28,10 +28,6 @@ class ExerciseService {
       'RED': '🔴', 'BLUE': '🔵', 'GREEN': '🟢', 'YELLOW': '🟡', 'ORANGE': '🟠',
       'PURPLE': '🟣', 'BROWN': '🟤', 'BLACK': '⚫', 'WHITE': '⚪', 'PINK': '🩷',
     },
-    'Shapes': {
-      'CIRCLE': '⭕', 'SQUARE': '🟦', 'TRIANGLE': '🔺', 'STAR': '⭐', 'HEART': '❤️',
-      'DIAMOND': '🔷', 'OVAL': '🥚',
-    },
     'Animals': {
       'CAT': '🐱', 'DOG': '🐶', 'COW': '🐮', 'BIRD': '🐦', 'FISH': '🐟',
       'RABBIT': '🐰', 'FROG': '🐸', 'MONKEY': '🐵', 'LION': '🦁', 'ELEPHANT': '🐘',

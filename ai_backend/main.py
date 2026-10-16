@@ -256,7 +256,6 @@ LEVEL_RULES = {
 LEVEL_TOPICS = {
     "beginner": {
         "Colors": "basic colour names",
-        "Shapes": "basic geometric shapes",
         "Animals": "common animals children know",
         "Fruits": "common fruits",
         "Body Parts": "parts of the human body",
