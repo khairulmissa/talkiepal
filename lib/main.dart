@@ -7,6 +7,7 @@ import 'special_sound/specialsound_page.dart';
 import 'game_page.dart';
 import 'profile_page.dart';
 import 'parent/splash_screen.dart';
+import 'package:talkiepal/widgets/kids_bottom_nav.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -401,73 +402,34 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   }
 
   Widget _buildBottomNav() {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(30),
-        boxShadow: const [
-          BoxShadow(color: Color(0x22000000), blurRadius: 12, offset: Offset(0, 4)),
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          _buildNavItem(Icons.home_rounded, 'Home', true),
-          _buildNavItem(Icons.sports_esports_rounded, 'Game', false),
-          _buildNavItem(Icons.bar_chart_rounded, 'Progress', false),
-          _buildNavItem(Icons.person_rounded, 'Profile', false),
-        ],
-      ),
-    );
+    return KidsBottomNav(selected: KidsTab.home, onTap: _onNavTap);
   }
 
-  Widget _buildNavItem(IconData icon, String label, bool isSelected) {
-    const Color selectedColor = Color(0xFF8E24AA);
-
-    return GestureDetector(
-      onTap: () {
-        if (label == 'Home') {
-          // Already on Home
-        } else if (label == 'Game') {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const GamePage()),
-          );
-        } else if (label == 'Progress') {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Progress page coming soon!'),
-              duration: Duration(seconds: 1),
-            ),
-          );
-        } else if (label == 'Profile') {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const ProfilePage()),
-          );
-        }
-      },
-      child: Container(
-        padding: EdgeInsets.symmetric(horizontal: isSelected ? 16 : 8, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFF3E5F5) : Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, color: isSelected ? selectedColor : Colors.grey.shade400, size: 26),
-            if (isSelected) ...[
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: const TextStyle(fontWeight: FontWeight.w900, color: selectedColor),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
+  void _onNavTap(KidsTab tab) {
+    switch (tab) {
+      case KidsTab.home:
+        // Already on this page
+        break;
+      case KidsTab.game:
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const GamePage()),
+        );
+        break;
+      case KidsTab.progress:
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Progress page coming soon!'),
+            duration: Duration(seconds: 1),
+          ),
+        );
+        break;
+      case KidsTab.profile:
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const ProfilePage()),
+        );
+        break;
+    }
   }
 }

@@ -3,6 +3,7 @@ import 'package:talkiepal/main.dart';
 import 'package:talkiepal/game_page.dart';
 import 'package:talkiepal/profile_page.dart';
 import 'package:talkiepal/practice/widgets/success_dialog.dart';
+import 'package:talkiepal/widgets/kids_bottom_nav.dart';
 
 class PracticeNumbers1To10Page extends StatefulWidget {
   const PracticeNumbers1To10Page({super.key});
@@ -367,34 +368,7 @@ class _PracticeNumbers1To10PageState extends State<PracticeNumbers1To10Page> {
                 ),
               ),
 
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(20),
-                    topRight: Radius.circular(20),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.grey.withOpacity(0.1),
-                      spreadRadius: 1,
-                      blurRadius: 8,
-                    ),
-                  ],
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      _buildNavItem(Icons.home, 'Home', false, context),
-                      _buildNavItem(Icons.gamepad, 'Game', false, context),
-                      _buildNavItem(Icons.bar_chart, 'Progress', false, context),
-                      _buildNavItem(Icons.person, 'Profile', false, context),
-                    ],
-                  ),
-                ),
-              ),
+              KidsBottomNav(selected: null, onTap: _onNavTap),
             ],
           ),
         ),
@@ -441,52 +415,34 @@ class _PracticeNumbers1To10PageState extends State<PracticeNumbers1To10Page> {
     );
   }
 
-  Widget _buildNavItem(IconData icon, String label, bool isSelected, BuildContext context) {
-    return GestureDetector(
-      onTap: () {
-        if (label == 'Home') {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const HomePage()),
-          );
-        } else if (label == 'Game') {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const GamePage()),
-          );
-        } else if (label == 'Progress') {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Progress page coming soon!'),
-              duration: Duration(seconds: 1),
-            ),
-          );
-        } else if (label == 'Profile') {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const ProfilePage()),
-          );
-        }
-      },
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            icon,
-            color: isSelected ? const Color(0xFFB47CC4) : Colors.grey.shade400,
-            size: 24,
+  void _onNavTap(KidsTab tab) {
+    switch (tab) {
+      case KidsTab.home:
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const HomePage()),
+        );
+        break;
+      case KidsTab.game:
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const GamePage()),
+        );
+        break;
+      case KidsTab.progress:
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Progress page coming soon!'),
+            duration: Duration(seconds: 1),
           ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              color: isSelected ? const Color(0xFFB47CC4) : Colors.grey.shade400,
-              fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-            ),
-          ),
-        ],
-      ),
-    );
+        );
+        break;
+      case KidsTab.profile:
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const ProfilePage()),
+        );
+        break;
+    }
   }
 }
