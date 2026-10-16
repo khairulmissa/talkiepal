@@ -344,7 +344,7 @@ EXERCISE_SCHEMA = {
 class ExerciseRequest(BaseModel):
     level: str = Field(min_length=1, max_length=40)
     topic: str = Field(min_length=1, max_length=40)
-    count: int = Field(default=5, ge=1, le=10)
+    count: int = Field(default=10, ge=1, le=10)
     exclude: list[str] = Field(default_factory=list, max_length=50)
 
 
@@ -465,7 +465,7 @@ def ask_llama_json(prompt: str, schema: dict, num_predict: int) -> dict:
                     "num_predict": num_predict
                 }
             },
-            timeout=120
+            timeout=180
         )
 
         response.raise_for_status()
@@ -515,7 +515,7 @@ def generate_exercises(request: ExerciseRequest):
     data = ask_llama_json(
         build_exercise_prompt(level, topic, request.count, request.exclude),
         EXERCISE_SCHEMA,
-        num_predict=400
+        num_predict=800
     )
 
     try:
@@ -576,7 +576,7 @@ SENTENCE_CHARS = set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz012345
 
 class QuestionRequest(BaseModel):
     topic: str = Field(min_length=1, max_length=40)
-    count: int = Field(default=5, ge=1, le=10)
+    count: int = Field(default=10, ge=1, le=10)
     exclude: list[str] = Field(default_factory=list, max_length=50)
 
 
@@ -685,7 +685,7 @@ def generate_questions(request: QuestionRequest):
     data = ask_llama_json(
         build_question_prompt(topic, request.count, request.exclude),
         QUESTION_SCHEMA,
-        num_predict=900
+        num_predict=1700
     )
 
     try:

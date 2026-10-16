@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:talkiepal/game_page.dart';
 import 'package:talkiepal/profile_page.dart';
 import 'package:talkiepal/services/exercise_service.dart';
+import 'package:talkiepal/practice/widgets/practice_scaffold.dart';
 import 'package:talkiepal/practice/widgets/success_dialog.dart';
 import 'package:talkiepal/widgets/kids_bottom_nav.dart';
 import 'package:talkiepal/progress_page.dart';
@@ -18,7 +19,7 @@ class AiSoundPage extends StatefulWidget {
     super.key,
     required this.sound,
     required this.isSentence,
-    this.count = 5,
+    this.count = 10,
   });
 
   @override
@@ -37,8 +38,6 @@ class _AiSoundPageState extends State<AiSoundPage> {
     'W': 'Round your lips like you are blowing a kiss for "W"!',
   };
 
-  static const Color _targetColor = Color(0xFFFFD54F);
-
   bool isLoading = true;
   bool isPlaying = false;
   bool isListening = false;
@@ -47,7 +46,7 @@ class _AiSoundPageState extends State<AiSoundPage> {
 
   // Index of the letter box (words) or word (sentences) that is lit up.
   int highlightedUnit = -1;
-  Color highlightColor = Colors.white;
+  Color highlightColor = PracticeColors.listen;
 
   // Bumped whenever the item changes, so an old highlight run stops.
   int _highlightRun = 0;
@@ -155,7 +154,7 @@ class _AiSoundPageState extends State<AiSoundPage> {
     });
 
     // Audio is not connected yet; the highlight shows the reading pace.
-    final finished = await _highlightUnits(Colors.white, _pace);
+    final finished = await _highlightUnits(PracticeColors.listen, _pace);
 
     if (!mounted || !finished) return;
     setState(() {
@@ -169,7 +168,7 @@ class _AiSoundPageState extends State<AiSoundPage> {
       isListening = true;
     });
 
-    final finished = await _highlightUnits(_targetColor, _pace);
+    final finished = await _highlightUnits(PracticeColors.speak, _pace);
     if (!mounted || !finished) return;
 
     final score = await _checkPronunciation();
@@ -309,373 +308,108 @@ class _AiSoundPageState extends State<AiSoundPage> {
     );
   }
 
+  static const PracticeLook _look = PracticeLook.specialSound;
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          image: DecorationImage(
-            image: AssetImage('lib/assets/images/bg_wordpractices.png'),
-            fit: BoxFit.cover,
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 10),
-                      _buildHeader(),
-                      const SizedBox(height: 20),
-                      if (isLoading) _buildLoadingCard() else ..._buildPracticeContent(),
-                      const SizedBox(height: 25),
-                    ],
-                  ),
-                ),
-              ),
-              _buildBottomNav(),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeader() {
-    final title = widget.isSentence
-        ? 'MINI CHALLENGE - SOUND ${widget.sound}'
-        : 'SOUND ${widget.sound} - WORDS';
-
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        _buildCircleButton(Icons.arrow_back, () => Navigator.pop(context)),
-        Flexible(
-          child: Column(
-            children: [
-              Text(
-                title,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF6B4C7A),
-                ),
-              ),
-              const SizedBox(height: 4),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE8D5F0),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  isLoading ? 'Loading...' : '${currentIndex + 1} of ${exercises.length}',
-                  style: const TextStyle(fontSize: 10, color: Color(0xFF8B5E9E)),
-                ),
+    return PracticeScaffold(
+      look: _look,
+      title: widget.isSentence ? 'Mini Challenge ${widget.sound} 🏆' : 'Sound ${widget.sound} 🎶',
+      current: isLoading ? 0 : currentIndex + 1,
+      total: exercises.length,
+      dinoTip: _soundTips[widget.sound] ?? 'Listen first, then say it clearly!',
+      isLoading: isLoading,
+      loadingText: widget.isSentence
+          ? 'Creating new sentences for you... ✨'
+          : 'Creating new words for you... ✨',
+      onRefresh: _loadExercises,
+      onNavTap: _onNavTap,
+      children: isLoading || exercises.isEmpty
+          ? const []
+          : [
+              _buildPracticeCard(),
+              const SizedBox(height: 22),
+              ListenSpeakButtons(
+                onListen: _onListen,
+                onSpeak: _onSpeak,
+                isPlaying: isPlaying,
+                isListening: isListening,
               ),
             ],
-          ),
-        ),
-        // New words button
-        _buildCircleButton(Icons.refresh, isLoading ? null : _loadExercises),
-      ],
     );
-  }
-
-  Widget _buildCircleButton(IconData icon, VoidCallback? onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: const BoxDecoration(
-          color: Color(0xFFE8D5F0),
-          shape: BoxShape.circle,
-        ),
-        child: Icon(icon, size: 24, color: const Color(0xFF8B5E9E)),
-      ),
-    );
-  }
-
-  Widget _buildLoadingCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 15),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFF0E0),
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(
-          color: const Color(0xFFFFCC99),
-          width: 1.5,
-        ),
-      ),
-      child: Column(
-        children: [
-          const CircularProgressIndicator(color: Color(0xFF8B5E9E)),
-          const SizedBox(height: 15),
-          Text(
-            widget.isSentence
-                ? 'Creating new sentences for you... ✨'
-                : 'Creating new words for you... ✨',
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF6B4C7A),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  List<Widget> _buildPracticeContent() {
-    return [
-      _buildPracticeCard(),
-      const SizedBox(height: 25),
-      _buildListenButton(),
-      const SizedBox(height: 20),
-      const Row(
-        children: [
-          Expanded(child: Divider(color: Colors.grey)),
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: 10),
-            child: Text('OR', style: TextStyle(color: Colors.grey)),
-          ),
-          Expanded(child: Divider(color: Colors.grey)),
-        ],
-      ),
-      const SizedBox(height: 20),
-      _buildSpeakButton(),
-      const SizedBox(height: 20),
-      Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: const Color(0xFFE8F4FD),
-          borderRadius: BorderRadius.circular(15),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.lightbulb, size: 20, color: Color(0xFF9C27B0)),
-            const SizedBox(width: 8),
-            Flexible(
-              child: Text(
-                _soundTips[widget.sound] ?? 'Listen first, then say it clearly!',
-                style: const TextStyle(fontSize: 12, color: Color(0xFF6B4C7A)),
-              ),
-            ),
-          ],
-        ),
-      ),
-    ];
   }
 
   Widget _buildPracticeCard() {
     final units = currentUnits;
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 30),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFFC9B3E0), Color(0xFF9C27B0)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(25),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.purple.withValues(alpha: 0.15),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+    return PracticeCard(
+      look: _look,
       child: Column(
         children: [
-          Text(currentExercise.emoji, style: const TextStyle(fontSize: 44)),
-          const SizedBox(height: 10),
-          Text(
-            widget.isSentence ? 'SAY THIS SENTENCE' : 'SAY THE WORD',
-            style: const TextStyle(
-              fontSize: 12,
-              letterSpacing: 2,
-              color: Colors.white70,
-            ),
-          ),
-          const SizedBox(height: 20),
+          BigEmoji(emoji: currentExercise.emoji, background: _look.lightColor),
+          const SizedBox(height: 16),
           Wrap(
             alignment: WrapAlignment.center,
-            spacing: widget.isSentence ? 6 : 4,
+            spacing: widget.isSentence ? 4 : 6,
             runSpacing: 8,
-            children: List.generate(units.length, (i) {
-              return widget.isSentence
-                  ? _buildSentenceWord(units[i], i == highlightedUnit)
-                  : _buildLetterBox(units[i], i == highlightedUnit, units.length);
-            }),
+            children: [
+              for (var i = 0; i < units.length; i++)
+                widget.isSentence
+                    ? WordChip(
+                        text: units[i],
+                        isLit: i == highlightedUnit,
+                        litColor: highlightColor,
+                        target: widget.sound,
+                        size: 24,
+                      )
+                    : _buildLetterBox(units[i], i == highlightedUnit, units.length),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            decoration: BoxDecoration(color: _look.lightColor, borderRadius: BorderRadius.circular(14)),
+            child: Text(
+              '⭐ Target sound: ${widget.sound}',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: _look.darkColor),
+            ),
           ),
         ],
       ),
     );
   }
 
-  /// One letter box. The target sound is yellow with an underline.
+  /// One letter box. The target sound box is yellow.
   Widget _buildLetterBox(String text, bool isLit, int boxCount) {
     final isTarget = text == widget.sound;
-    final double fontSize = boxCount <= 4 ? 44 : (boxCount <= 6 ? 36 : 28);
+    final double fontSize = boxCount <= 5 ? 30 : (boxCount <= 7 ? 24 : 20);
+
+    final Color background = isLit
+        ? highlightColor
+        : (isTarget ? const Color(0xFFFFF59D) : const Color(0xFFF7F2FA));
+    final Color border = isLit
+        ? highlightColor
+        : (isTarget ? const Color(0xFFFFB300) : const Color(0xFFE6DCEB));
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      constraints: BoxConstraints(minWidth: fontSize * 1.5),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
-        color: isLit ? highlightColor : Colors.transparent,
-        borderRadius: BorderRadius.circular(15),
-        border: isTarget && !isLit
-            ? Border.all(color: _targetColor, width: 2)
-            : Border.all(color: Colors.transparent, width: 2),
+        color: background,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: border, width: 3),
       ),
       child: Text(
         text,
+        textAlign: TextAlign.center,
         style: TextStyle(
           fontSize: fontSize,
-          fontWeight: FontWeight.bold,
-          color: isLit
-              ? const Color(0xFF9C27B0)
-              : (isTarget ? _targetColor : Colors.white),
+          fontWeight: FontWeight.w900,
+          color: isLit ? Colors.white : (isTarget ? _look.darkColor : PracticeColors.ink),
         ),
       ),
     );
-  }
-
-  /// One word of a sentence. The target sound letters are yellow.
-  Widget _buildSentenceWord(String word, bool isLit) {
-    final baseColor = isLit ? const Color(0xFF9C27B0) : Colors.white;
-    final targetColor = isLit ? const Color(0xFFE67E22) : _targetColor;
-
-    final spans = <TextSpan>[];
-    final parts = word.split(widget.sound);
-    for (var i = 0; i < parts.length; i++) {
-      if (parts[i].isNotEmpty) {
-        spans.add(TextSpan(text: parts[i], style: TextStyle(color: baseColor)));
-      }
-      if (i < parts.length - 1) {
-        spans.add(TextSpan(text: widget.sound, style: TextStyle(color: targetColor)));
-      }
-    }
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: isLit ? highlightColor : Colors.transparent,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: RichText(
-        text: TextSpan(
-          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-          children: spans,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildListenButton() {
-    return Center(
-      child: GestureDetector(
-        onTap: _onListen,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12),
-          decoration: BoxDecoration(
-            color: isPlaying ? Colors.grey : const Color(0xFFC9B3E0),
-            borderRadius: BorderRadius.circular(30),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.play_arrow,
-                size: 24,
-                color: isPlaying ? Colors.white60 : Colors.white,
-              ),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Text(
-                  isPlaying
-                      ? 'PLAYING...'
-                      : (widget.isSentence ? '🔊 LISTEN' : '🔊 LISTEN TO THE WORD'),
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: isPlaying ? Colors.white60 : Colors.white,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSpeakButton() {
-    return Center(
-      child: GestureDetector(
-        onTap: _onSpeak,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 18),
-          decoration: BoxDecoration(
-            gradient: isListening
-                ? const LinearGradient(colors: [Colors.grey, Colors.grey])
-                : const LinearGradient(
-                    colors: [Color(0xFFA8D5A2), Color(0xFF6BCB77)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-            borderRadius: BorderRadius.circular(50),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.green.withValues(alpha: 0.3),
-                blurRadius: 10,
-                offset: const Offset(0, 5),
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                isListening ? Icons.mic_off : Icons.mic,
-                color: Colors.white,
-                size: 30,
-              ),
-              const SizedBox(width: 12),
-              Flexible(
-                child: Text(
-                  isListening
-                      ? 'WAIT...'
-                      : (widget.isSentence ? 'SPEAK' : 'SPEAK THE WORD'),
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBottomNav() {
-    return KidsBottomNav(selected: null, onTap: _onNavTap);
   }
 
   void _onNavTap(KidsTab tab) {

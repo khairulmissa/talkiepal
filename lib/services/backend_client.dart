@@ -16,7 +16,7 @@ Future<dynamic> postToBackend(String url, Map<String, dynamic> body) async {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(body),
       )
-      .timeout(const Duration(seconds: 60));
+      .timeout(const Duration(seconds: 150));
 
   if (response.statusCode != 200) {
     throw Exception('Backend error ${response.statusCode}');

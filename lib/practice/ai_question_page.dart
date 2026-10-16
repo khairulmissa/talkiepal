@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:talkiepal/game_page.dart';
 import 'package:talkiepal/profile_page.dart';
 import 'package:talkiepal/services/question_service.dart';
+import 'package:talkiepal/practice/widgets/practice_scaffold.dart';
 import 'package:talkiepal/practice/widgets/success_dialog.dart';
 import 'package:talkiepal/widgets/kids_bottom_nav.dart';
 import 'package:talkiepal/progress_page.dart';
@@ -15,7 +16,7 @@ class AiQuestionPage extends StatefulWidget {
   const AiQuestionPage({
     super.key,
     required this.topic,
-    this.count = 5,
+    this.count = 10,
   });
 
   @override
@@ -255,259 +256,84 @@ class _AiQuestionPageState extends State<AiQuestionPage> {
     );
   }
 
+  static const PracticeLook _look = PracticeLook.intermediate;
+
+  // Pastel colours for answers A, B and C: [background, bottom edge].
+  static const List<List<Color>> _answerColors = [
+    [Color(0xFFE3F2FD), Color(0xFF90CAF9)],
+    [Color(0xFFE8F5E9), Color(0xFFA5D6A7)],
+    [Color(0xFFFFF3D6), Color(0xFFFFCC80)],
+  ];
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          image: DecorationImage(
-            image: AssetImage('lib/assets/images/fullbg_beginnerpractice.png'),
-            fit: BoxFit.cover,
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 10),
-                      _buildHeader(),
-                      const SizedBox(height: 20),
-                      if (isLoading) _buildLoadingCard() else ..._buildQuestionContent(),
-                      const SizedBox(height: 25),
-                    ],
-                  ),
+    return PracticeScaffold(
+      look: _look,
+      title: widget.topic,
+      current: isLoading ? 0 : currentIndex + 1,
+      total: questions.length,
+      dinoTip: 'Listen to my question, then tap the right answer!',
+      isLoading: isLoading,
+      loadingText: 'Creating new questions for you... ✨',
+      onRefresh: _loadQuestions,
+      onNavTap: _onNavTap,
+      children: isLoading || questions.isEmpty
+          ? const []
+          : [
+              _buildQuestionCard(),
+              const SizedBox(height: 20),
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Tap the right answer 👇',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF6B4C7A)),
                 ),
               ),
-              _buildBottomNav(),
+              const SizedBox(height: 12),
+              for (var i = 0; i < currentQuestion.options.length; i++) _buildOption(i),
             ],
-          ),
-        ),
-      ),
     );
-  }
-
-  Widget _buildHeader() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        _buildCircleButton(Icons.arrow_back, () => Navigator.pop(context)),
-        Flexible(
-          child: Column(
-          children: [
-            Text(
-              widget.topic.toUpperCase(),
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF6B4C7A),
-              ),
-            ),
-            const SizedBox(height: 4),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: const Color(0xFFE8D5F0),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                isLoading ? 'Loading...' : '${currentIndex + 1} of ${questions.length}',
-                style: const TextStyle(fontSize: 10, color: Color(0xFF8B5E9E)),
-              ),
-            ),
-          ],
-          ),
-        ),
-        // New questions button
-        _buildCircleButton(Icons.refresh, isLoading ? null : _loadQuestions),
-      ],
-    );
-  }
-
-  Widget _buildCircleButton(IconData icon, VoidCallback? onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: const BoxDecoration(
-          color: Color(0xFFE8D5F0),
-          shape: BoxShape.circle,
-        ),
-        child: Icon(icon, size: 24, color: const Color(0xFF8B5E9E)),
-      ),
-    );
-  }
-
-  Widget _buildLoadingCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 15),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFF0E0),
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(
-          color: const Color(0xFFFFCC99),
-          width: 1.5,
-        ),
-      ),
-      child: const Column(
-        children: [
-          CircularProgressIndicator(color: Color(0xFF8B5E9E)),
-          SizedBox(height: 15),
-          Text(
-            'Creating new questions for you... ✨',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF6B4C7A),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  List<Widget> _buildQuestionContent() {
-    return [
-      _buildQuestionCard(),
-      const SizedBox(height: 20),
-      _buildListenButton(),
-      const SizedBox(height: 25),
-      const Text(
-        'CHOOSE THE CORRECT ANSWER:',
-        style: TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.bold,
-          color: Color(0xFF6B4C7A),
-        ),
-      ),
-      const SizedBox(height: 15),
-      for (var i = 0; i < currentQuestion.options.length; i++) _buildOption(i),
-      const SizedBox(height: 20),
-      Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: const Color(0xFFE8F4FD),
-          borderRadius: BorderRadius.circular(15),
-        ),
-        child: const Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.lightbulb, size: 20, color: Color(0xFF9C27B0)),
-            SizedBox(width: 8),
-            Flexible(
-              child: Text(
-                'Listen, then tap the correct answer!',
-                style: TextStyle(fontSize: 12, color: Color(0xFF6B4C7A)),
-              ),
-            ),
-          ],
-        ),
-      ),
-    ];
   }
 
   Widget _buildQuestionCard() {
     final words = questionWords;
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(25),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFFC9B3E0), Color(0xFF9C27B0)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.purple.withValues(alpha: 0.15),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+    return PracticeCard(
+      look: _look,
       child: Column(
         children: [
-          const Text(
-            'QUESTION',
-            style: TextStyle(
-              fontSize: 12,
-              letterSpacing: 2,
-              color: Colors.white70,
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(color: _look.lightColor, borderRadius: BorderRadius.circular(12)),
+            child: Text(
+              'QUESTION ❓',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: _look.darkColor, letterSpacing: 1),
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           Wrap(
             alignment: WrapAlignment.center,
-            spacing: 8,
-            runSpacing: 6,
-            children: List.generate(words.length, (i) {
-              final isLit = highlightedWord == i;
-
-              return AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: isLit ? Colors.white : Colors.transparent,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  words[i],
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: isLit ? const Color(0xFF9C27B0) : Colors.white,
-                  ),
-                ),
-              );
-            }),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildListenButton() {
-    return Center(
-      child: GestureDetector(
-        onTap: _onListen,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-          decoration: BoxDecoration(
-            color: isPlaying ? Colors.grey : const Color(0xFFC9B3E0),
-            borderRadius: BorderRadius.circular(30),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
+            spacing: 4,
+            runSpacing: 4,
             children: [
-              Icon(
-                Icons.play_arrow,
-                size: 20,
-                color: isPlaying ? Colors.white60 : Colors.white,
-              ),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Text(
-                  isPlaying ? 'PLAYING...' : '🔊 LISTEN TO QUESTION & ANSWERS',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: isPlaying ? Colors.white60 : Colors.white,
-                  ),
-                ),
-              ),
+              for (var i = 0; i < words.length; i++)
+                WordChip(text: words[i], isLit: i == highlightedWord, litColor: _look.color, size: 24),
             ],
           ),
-        ),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: 200,
+            child: ChunkyButton(
+              emoji: '🔊',
+              label: 'LISTEN',
+              color: PracticeColors.listen,
+              darkColor: PracticeColors.listenDark,
+              busy: isPlaying,
+              small: true,
+              onTap: _onListen,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -515,71 +341,63 @@ class _AiQuestionPageState extends State<AiQuestionPage> {
   Widget _buildOption(int i) {
     final isLit = highlightedOption == i;
     final isWrong = !isLit && wrongOption == i;
+    final colors = _answerColors[i % _answerColors.length];
 
-    final Color accent = isLit
-        ? const Color(0xFFFFB347)
-        : isWrong
-            ? const Color(0xFFFF6B6B)
-            : const Color(0xFFE8D5F0);
+    const Color wrongColor = Color(0xFFFF6B6B);
+    const Color litColor = Color(0xFFFFB300);
+
+    final Color background = isWrong ? const Color(0xFFFFEBEE) : colors[0];
+    final Color edge = isWrong ? const Color(0xFFFFB3B3) : (isLit ? litColor : colors[1]);
+    final Color border = isWrong ? wrongColor : (isLit ? litColor : Colors.white);
 
     return GestureDetector(
       onTap: () => _onOptionTap(i),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         width: double.infinity,
-        padding: const EdgeInsets.all(15),
-        margin: const EdgeInsets.only(bottom: 10),
+        margin: const EdgeInsets.only(bottom: 14),
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: isLit || isWrong ? accent.withValues(alpha: 0.2) : Colors.grey.shade100,
-          borderRadius: BorderRadius.circular(15),
-          border: Border.all(
-            color: isLit || isWrong ? accent : Colors.grey.shade300,
-            width: isLit || isWrong ? 2 : 1,
-          ),
+          color: background,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: border, width: 3),
+          boxShadow: [BoxShadow(color: edge, offset: const Offset(0, 5))],
         ),
         child: Row(
           children: [
             Container(
-              width: 35,
-              height: 35,
+              width: 40,
+              height: 40,
+              alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: accent,
+                color: isWrong ? wrongColor : (isLit ? litColor : Colors.white),
                 shape: BoxShape.circle,
               ),
-              child: Center(
-                child: Text(
-                  String.fromCharCode(65 + i),
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: isLit || isWrong ? Colors.white : const Color(0xFF8B5E9E),
-                  ),
+              child: Text(
+                String.fromCharCode(65 + i),
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                  color: isWrong || isLit ? Colors.white : _look.darkColor,
                 ),
               ),
             ),
-            const SizedBox(width: 15),
+            const SizedBox(width: 12),
             Expanded(
               child: Text(
                 currentQuestion.options[i],
                 style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: isLit || isWrong ? FontWeight.bold : FontWeight.normal,
-                  color: isLit
-                      ? const Color(0xFFE67E22)
-                      : isWrong
-                          ? const Color(0xFFFF6B6B)
-                          : const Color(0xFF5D3A6B),
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: isWrong ? const Color(0xFFE53935) : PracticeColors.ink,
                 ),
               ),
             ),
+            if (isWrong) const Text('❌', style: TextStyle(fontSize: 18)),
           ],
         ),
       ),
     );
-  }
-
-  Widget _buildBottomNav() {
-    return KidsBottomNav(selected: null, onTap: _onNavTap);
   }
 
   void _onNavTap(KidsTab tab) {
