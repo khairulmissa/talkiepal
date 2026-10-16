@@ -11,4 +11,6 @@ class ApiConfig {
   static const String healthUrl = '$baseUrl/health';
 
   static const String generateExercisesUrl = '$baseUrl/generate-exercises';
+
+  static const String generateQuestionsUrl = '$baseUrl/generate-questions';
 }

@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'about_me.dart';  
-import 'daily_routine.dart';  
-import 'my_school.dart';  
+import 'package:talkiepal/practice/ai_question_page.dart';
 
 class IntermediatePage extends StatefulWidget {
   const IntermediatePage({super.key});
@@ -159,70 +157,23 @@ class _IntermediatePageState extends State<IntermediatePage> {
                       const SizedBox(height: 15),
 
                       // NEW SUBTOPICS - AT THE TOP
-                      _buildLearningItem('About Me', Icons.person, () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => const PracticeAboutMePage()),
-                        );
-                      }),
+                      _buildLearningItem('About Me', Icons.person, () => _openAiQuestions('About Me')),
                       const SizedBox(height: 10),
                       
-                      _buildLearningItem('Daily Routine', Icons.schedule, () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => const PracticeDailyRoutinePage()),
-                        );
-                      }),
+                      _buildLearningItem('Daily Routine', Icons.schedule, () => _openAiQuestions('Daily Routine')),
                       const SizedBox(height: 10),
                       
-                      _buildLearningItem('My School', Icons.school, () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => const PracticeMySchoolPage()),
-                        );
-                      }),
+                      _buildLearningItem('My School', Icons.school, () => _openAiQuestions('My School')),
                       const SizedBox(height: 10),
 
                       // EXISTING SUBTOPICS (KEPT AS IS)
-                      _buildLearningItem('Travel & Holiday', Icons.flight_takeoff, () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Opening Travel & Holiday...'),
-                            backgroundColor: Color(0xFFC9B3E0),
-                            duration: Duration(seconds: 1),
-                          ),
-                        );
-                      }),
+                      _buildLearningItem('Travel & Holiday', Icons.flight_takeoff, () => _openAiQuestions('Travel & Holiday')),
                       const SizedBox(height: 10),
-                      _buildLearningItem('Weather & Seasons', Icons.wb_sunny, () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Opening Weather & Seasons...'),
-                            backgroundColor: Color(0xFFC9B3E0),
-                            duration: Duration(seconds: 1),
-                          ),
-                        );
-                      }),
+                      _buildLearningItem('Weather & Seasons', Icons.wb_sunny, () => _openAiQuestions('Weather & Seasons')),
                       const SizedBox(height: 10),
-                      _buildLearningItem('Feelings & Emotion', Icons.emoji_emotions, () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Opening Feelings & Emotion...'),
-                            backgroundColor: Color(0xFFC9B3E0),
-                            duration: Duration(seconds: 1),
-                          ),
-                        );
-                      }),
+                      _buildLearningItem('Feelings & Emotion', Icons.emoji_emotions, () => _openAiQuestions('Feelings & Emotion')),
                       const SizedBox(height: 10),
-                      _buildLearningItem('Places Around Town', Icons.location_city, () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Opening Places Around Town...'),
-                            backgroundColor: Color(0xFFC9B3E0),
-                            duration: Duration(seconds: 1),
-                          ),
-                        );
-                      }),
+                      _buildLearningItem('Places Around Town', Icons.location_city, () => _openAiQuestions('Places Around Town')),
                       const SizedBox(height: 10),
                       _buildLearningItem('Mini Stories', Icons.menu_book, () {
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -348,6 +299,13 @@ class _IntermediatePageState extends State<IntermediatePage> {
           ),
         ),
       ),
+    );
+  }
+
+  void _openAiQuestions(String topic) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => AiQuestionPage(topic: topic)),
     );
   }
 

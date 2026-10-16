@@ -1,8 +1,7 @@
-import 'dart:convert';
 import 'dart:math';
 
-import 'package:http/http.dart' as http;
 import 'package:talkiepal/config/api_config.dart';
+import 'package:talkiepal/services/backend_client.dart';
 
 class PracticeExercise {
   final String word;
@@ -99,28 +98,13 @@ class ExerciseService {
     final recent = _recentWords[key] ?? [];
 
     try {
-      // Quick check first, so the app does not wait long when the
-      // backend cannot be reached (wrong IP, laptop off, other WiFi).
-      await http.get(Uri.parse(ApiConfig.healthUrl)).timeout(const Duration(seconds: 3));
+      final data = await postToBackend(ApiConfig.generateExercisesUrl, {
+        'level': level,
+        'topic': topic,
+        'count': count,
+        'exclude': recent,
+      });
 
-      final response = await http
-          .post(
-            Uri.parse(ApiConfig.generateExercisesUrl),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'level': level,
-              'topic': topic,
-              'count': count,
-              'exclude': recent,
-            }),
-          )
-          .timeout(const Duration(seconds: 45));
-
-      if (response.statusCode != 200) {
-        throw Exception('Backend error ${response.statusCode}');
-      }
-
-      final data = jsonDecode(utf8.decode(response.bodyBytes));
       final exercises = (data['exercises'] as List)
           .map((item) => _buildExercise(item['word'] as String, item['emoji'] as String))
           .toList();
