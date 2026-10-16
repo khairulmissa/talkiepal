@@ -261,6 +261,37 @@ LEVEL_RULES = {
         "max_length": 30,
         "example": {"word": "I AM HAPPY", "emoji": "😊"},
     },
+    "special_words": {
+        "description": "children who are practising one difficult speech sound",
+        "word_rule": "ONE simple, common English word that contains the target sound (no spaces, no hyphens)",
+        "extra_rule": "Mix words with the sound at the START, in the MIDDLE and at the END (for example {hint}).",
+        "min_words": 1,
+        "max_words": 1,
+        "max_length": 12,
+        "example": {"word": "RED", "emoji": "🔴"},
+    },
+    "special_sentences": {
+        "description": "children who are practising one difficult speech sound in sentences",
+        "word_rule": "a short, simple sentence of 3 to 8 easy words, no punctuation and no apostrophes",
+        "extra_rule": "At least 3 words in each sentence must contain the target sound (for example {hint}).",
+        "min_words": 3,
+        "max_words": 8,
+        "max_length": 50,
+        "example": {"word": "THE RED ROBOT RUNS IN THE RAIN", "emoji": "🤖"},
+    },
+}
+
+# Target sounds for Special Sound practice.
+# "avoid" lists spellings that sound different and would confuse the child.
+SPECIAL_SOUNDS = {
+    "R": {"hint": "RED, CARROT, CAR", "avoid": ["WR"]},
+    "S": {"hint": "SUN, BASKET, BUS", "avoid": ["SH"]},
+    "L": {"hint": "LEG, BALLOON, BALL", "avoid": []},
+    "TH": {"hint": "THREE, MOTHER, BATH", "avoid": []},
+    "SH": {"hint": "SHIP, WASHING, FISH", "avoid": []},
+    "CH": {"hint": "CHIN, TEACHER, LUNCH", "avoid": ["CHR"]},
+    "V": {"hint": "VAN, SEVEN, FIVE", "avoid": []},
+    "W": {"hint": "WET, WINDOW, SANDWICH", "avoid": ["WR", "WH"]},
 }
 
 # Topics allowed for each level, with a hint to keep the model on track.
@@ -282,6 +313,12 @@ LEVEL_TOPICS = {
         "Daily Routine": "everyday actions, e.g. EAT BREAKFAST",
         "Home & Rooms": "rooms and things at home, e.g. LIVING ROOM",
         "Shopping & Toys": "toys and shopping items, e.g. TEDDY BEAR",
+    },
+    "special_words": {
+        sound: f'the "{sound}" sound, spelled {sound}' for sound in SPECIAL_SOUNDS
+    },
+    "special_sentences": {
+        sound: f'the "{sound}" sound, spelled {sound}' for sound in SPECIAL_SOUNDS
     },
 }
 
@@ -327,6 +364,13 @@ def build_exercise_prompt(level: str, topic: str, count: int, exclude: list[str]
     topic_hint = LEVEL_TOPICS[level][topic]
     avoid = ", ".join(w.upper() for w in exclude) or "none"
 
+    extra = ""
+    if level in ("special_words", "special_sentences"):
+        sound = SPECIAL_SOUNDS[topic]
+        extra = "\n7. " + rules["extra_rule"].format(hint=sound["hint"])
+        if sound["avoid"]:
+            extra += f"\n8. Do not use any word spelled with {' or '.join(sound['avoid'])}."
+
     return f"""
 Create {count} different speaking practice items for {rules["description"]}.
 
@@ -338,14 +382,30 @@ RULES:
 3. Use easy, child-friendly, everyday words only.
 4. No duplicates. Do not use these: {avoid}.
 5. "word" must be in UPPERCASE letters only.
-6. "emoji" is ONE emoji that shows the item.
+6. "emoji" is ONE emoji that shows the item.{extra}
 
 Reply with JSON only, for example:
 {json.dumps({"exercises": [rules["example"]]}, ensure_ascii=False)}
 """
 
 
-def clean_exercises(raw_items, level: str, count: int, exclude: list[str]) -> list[Exercise]:
+def has_target_sound(text: str, topic: str, level: str) -> bool:
+    """For Special Sound levels, check the target sound is there and no confusing sound is."""
+    if level not in ("special_words", "special_sentences"):
+        return True
+
+    target = topic.upper()
+    avoid = SPECIAL_SOUNDS[topic]["avoid"]
+    words = text.split()
+
+    if any(bad in word for word in words for bad in avoid):
+        return False
+
+    needed = 1 if level == "special_words" else 3
+    return sum(target in word for word in words) >= needed
+
+
+def clean_exercises(raw_items, level: str, topic: str, count: int, exclude: list[str]) -> list[Exercise]:
     """Keep only valid, unique words that match the level rules."""
     rules = LEVEL_RULES[level]
     seen = {w.strip().upper() for w in exclude}
@@ -366,6 +426,8 @@ def clean_exercises(raw_items, level: str, count: int, exclude: list[str]) -> li
         if not all(part.isalpha() and part.isascii() for part in parts):
             continue
         if len(word) > rules["max_length"]:
+            continue
+        if not has_target_sound(word, topic, level):
             continue
 
         seen.add(word)
@@ -457,7 +519,7 @@ def generate_exercises(request: ExerciseRequest):
     )
 
     try:
-        exercises = clean_exercises(data["exercises"], level, request.count, request.exclude)
+        exercises = clean_exercises(data["exercises"], level, topic, request.count, request.exclude)
     except (KeyError, TypeError):
         exercises = []
 

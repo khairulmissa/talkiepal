@@ -84,6 +84,50 @@ class ExerciseService {
         'NEW DOLL': '🪆', 'BUY A TOY': '🛒',
       },
     },
+    'special_words': {
+      'R': {'RED': '🔴', 'RUN': '🏃', 'RICE': '🍚', 'RAIN': '🌧️', 'CARROT': '🥕', 'CAR': '🚗'},
+      'S': {'SUN': '☀️', 'SIX': '6️⃣', 'SOCK': '🧦', 'BASKET': '🧺', 'BUS': '🚌', 'GLASS': '🥛'},
+      'L': {'LION': '🦁', 'LEG': '🦵', 'LEAF': '🍃', 'BALLOON': '🎈', 'BALL': '⚽', 'BELL': '🔔'},
+      'TH': {'THREE': '3️⃣', 'THUMB': '👍', 'MOTHER': '👩', 'FEATHER': '🪶', 'BATH': '🛁', 'TOOTH': '🦷'},
+      'SH': {'SHIP': '🚢', 'SHOE': '👟', 'SHELL': '🐚', 'WASHING': '🧺', 'FISH': '🐟', 'BRUSH': '🪥'},
+      'CH': {'CHIN': '🙂', 'CHAIR': '🪑', 'CHEESE': '🧀', 'TEACHER': '👩‍🏫', 'LUNCH': '🍱', 'WATCH': '⌚'},
+      'V': {'VAN': '🚐', 'VEST': '🦺', 'VASE': '🏺', 'SEVEN': '7️⃣', 'OVEN': '♨️', 'FIVE': '5️⃣'},
+      'W': {'WET': '💧', 'WIN': '🏆', 'WINDOW': '🪟', 'WATER': '💧', 'SANDWICH': '🥪', 'FLOWER': '🌸'},
+    },
+    'special_sentences': {
+      'R': {
+        'THE RED ROBOT RUNS IN THE RAIN': '🤖', 'RABBITS RUN ON THE ROAD': '🐰',
+        'I READ A RED BOOK IN MY ROOM': '📕', 'THE RAIN FELL ON THE RED ROOF': '🌧️',
+      },
+      'S': {
+        'SIX SUNNY SEALS SWIM': '🦭', 'SAM SINGS SEVEN SONGS': '🎵',
+        'THE SUN IS SO HOT': '☀️', 'I SEE SIX SOCKS': '🧦',
+      },
+      'L': {
+        'LITTLE LILY LOVES TO LAUGH': '😄', 'THE LION LIKES TO LICK A LOLLIPOP': '🦁',
+        'A LADYBUG LANDED ON A LEAF': '🐞', 'LOOK AT THE BLUE BALLOON': '🎈',
+      },
+      'TH': {
+        'THREE THICK THINGS': '3️⃣', 'THANK YOU MOTHER FOR THE GIFT': '🎁',
+        'THE FEATHER IS IN THE BATH': '🪶', 'THIS IS MY THIN THUMB': '👍',
+      },
+      'SH': {
+        'SHE SHOWS ME SHINY SHELLS': '🐚', 'THE SHIP SHINES IN THE SHADE': '🚢',
+        'SHE WASHED HER SHOES': '👟', 'FISH IN THE SHALLOW SHORE': '🐟',
+      },
+      'CH': {
+        'CHEESE AND CHIPS FOR LUNCH': '🧀', 'THE CHILD SITS ON A CHAIR TO CHAT': '🪑',
+        'CHOO CHOO SAYS THE CHUNKY TRAIN': '🚂', 'MY TEACHER HAS A CHOCOLATE CHIP': '🍫',
+      },
+      'V': {
+        'I HAVE FIVE VEGETABLES': '🥦', 'DAD DRIVES THE VAN VERY FAST': '🚐',
+        'SEVEN VIOLETS IN A VASE': '🏺', 'I LOVE MY VELVET VEST': '🦺',
+      },
+      'W': {
+        'WE WILL WALK IN THE WATER': '💧', 'WE WASH THE WET WINDOW': '🪟',
+        'WE WANT A WARM SANDWICH': '🥪', 'WE WAVE TO THE WIND': '👋',
+      },
+    },
   };
 
   // Words shown in recent sessions, sent to the AI so it picks new ones.

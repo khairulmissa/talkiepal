@@ -1,20 +1,5 @@
 import 'package:flutter/material.dart';
-import 'R_words.dart';
-import 'S_words.dart';
-import 'L_words.dart';
-import 'TH_words.dart';
-import 'SH_words.dart';
-import 'CH_words.dart';
-import 'V_words.dart';
-import 'W_words.dart';
-import 'mini_challenge_r.dart';
-import 'mini_challenge_s.dart';
-import 'mini_challenge_l.dart';
-import 'mini_challenge_th.dart';
-import 'mini_challenge_sh.dart';
-import 'mini_challenge_ch.dart';
-import 'mini_challenge_v.dart';
-import 'mini_challenge_w.dart';
+import 'package:talkiepal/practice/ai_sound_page.dart';
 
 class SpecialSoundPage extends StatefulWidget {
   const SpecialSoundPage({super.key});
@@ -210,7 +195,7 @@ class _SpecialSoundPageState extends State<SpecialSoundPage> {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                'Test your listening skills',
+                                'Say the whole sentence',
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: Colors.grey.shade600,
@@ -471,109 +456,21 @@ class _SpecialSoundPageState extends State<SpecialSoundPage> {
   }
 
   void _goToWordsPractice(BuildContext context, String level, String sound) {
-    // Navigate to words practice page based on selected sound
-    if (sound == 'R') {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const PracticeWordsRPage()),
-      );
-    } else if (sound == 'S') {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const PracticeWordsSPage()),
-      );
-    } else if (sound == 'L') {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const PracticeWordsLPage()),
-      );
-    } else if (sound == 'TH') {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const PracticeWordsTHPage()),
-      );
-    } else if (sound == 'SH') {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const PracticeWordsSHPage()),
-      );
-    } else if (sound == 'CH') {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const PracticeWordsCHPage()),
-      );
-    } else if (sound == 'V') {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const PracticeWordsVPage()),
-      );
-    } else if (sound == 'W') {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const PracticeWordsWPage()),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Coming soon: Words Practice for Sound $sound'),
-          backgroundColor: level == 'LEVEL 1' ? const Color(0xFF6BCB77) : const Color(0xFFE91E63),
-          duration: const Duration(seconds: 2),
-        ),
-      );
-    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AiSoundPage(sound: sound, isSentence: false),
+      ),
+    );
   }
 
   void _goToMiniChallenge(BuildContext context, String level, String sound) {
-    // Navigate to mini challenge page based on selected sound
-    if (sound == 'R') {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const MiniChallengeRPage()),
-      );
-    } else if (sound == 'S') {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const MiniChallengeSPage()),
-      );
-    } else if (sound == 'L') {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const MiniChallengeLPage()),
-      );
-    } else if (sound == 'TH') {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const MiniChallengeTHPage()),
-      );
-    } else if (sound == 'SH') {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const MiniChallengeSHPage()),
-      );
-    } else if (sound == 'CH') {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const MiniChallengeCHPage()),
-      );
-    } else if (sound == 'V') {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const MiniChallengeVPage()),
-      );
-    } else if (sound == 'W') {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const MiniChallengeWPage()),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Coming soon: Mini Challenge for Sound $sound'),
-          backgroundColor: level == 'LEVEL 1' ? const Color(0xFF6BCB77) : const Color(0xFFE91E63),
-          duration: const Duration(seconds: 2),
-        ),
-      );
-    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AiSoundPage(sound: sound, isSentence: true),
+      ),
+    );
   }
 
   @override
