@@ -29,7 +29,15 @@ class AiPracticePage extends StatefulWidget {
 class _AiPracticePageState extends State<AiPracticePage> {
   bool isLoading = true;
   bool isListening = false;
+  bool isPlaying = false;
   int currentIndex = 0;
+
+  // Index of the word that is lit up while LISTEN or SPEAK runs (-1 = none).
+  int highlightedWord = -1;
+  Color highlightColor = const Color(0xFFA8D5A2);
+
+  // Bumped whenever the exercise changes, so an old highlight run stops.
+  int _highlightRun = 0;
   List<PracticeExercise> exercises = [];
 
   PracticeExercise get currentExercise => exercises[currentIndex];
@@ -44,6 +52,7 @@ class _AiPracticePageState extends State<AiPracticePage> {
     setState(() {
       isLoading = true;
       currentIndex = 0;
+      _stopHighlight();
     });
 
     final result = await ExerciseService.getExercises(
@@ -81,11 +90,74 @@ class _AiPracticePageState extends State<AiPracticePage> {
     Navigator.pop(context);
   }
 
+  List<String> get currentWords => currentExercise.word.split(' ');
+
+  /// Lights up each word of the current exercise one by one.
+  /// Returns false if it was stopped because the exercise changed.
+  Future<bool> _highlightWords(Color color, Duration perWord) async {
+    final run = ++_highlightRun;
+    final words = currentWords;
+
+    for (var i = 0; i < words.length; i++) {
+      if (!mounted || run != _highlightRun) return false;
+      setState(() {
+        highlightColor = color;
+        highlightedWord = i;
+      });
+      await Future.delayed(perWord);
+    }
+
+    if (!mounted || run != _highlightRun) return false;
+    setState(() {
+      highlightedWord = -1;
+    });
+    return true;
+  }
+
+  // Call inside setState.
+  void _stopHighlight() {
+    _highlightRun++;
+    highlightedWord = -1;
+    isListening = false;
+    isPlaying = false;
+  }
+
+  Future<void> _onListen() async {
+    if (isPlaying || isListening) return;
+    setState(() {
+      isPlaying = true;
+    });
+
+    // Audio is not connected yet; the highlight shows the reading pace.
+    final finished = await _highlightWords(const Color(0xFFA8D5A2), const Duration(milliseconds: 700));
+
+    if (!mounted || !finished) return;
+    setState(() {
+      isPlaying = false;
+    });
+  }
+
+  Future<void> _onSpeak() async {
+    if (isPlaying || isListening) return;
+    setState(() {
+      isListening = true;
+    });
+
+    // Speech checking is not connected yet, so this always passes.
+    final finished = await _highlightWords(const Color(0xFFB47CC4), const Duration(milliseconds: 900));
+
+    if (!mounted || !finished) return;
+    setState(() {
+      isListening = false;
+    });
+    _showResultDialog();
+  }
+
   void _goToNextExercise() {
     if (currentIndex + 1 < exercises.length) {
       setState(() {
         currentIndex++;
-        isListening = false;
+        _stopHighlight();
       });
     } else {
       _finish();
@@ -162,7 +234,7 @@ class _AiPracticePageState extends State<AiPracticePage> {
                     ),
                     Expanded(
                       child: _buildDialogButton(
-                        label: isLastExercise ? 'FINISH →' : 'NEXT WORD →',
+                        label: isLastExercise ? 'FINISH →' : 'NEXT →',
                         color: const Color(0xFF8B5E9E),
                         margin: const EdgeInsets.only(left: 8),
                         onTap: () {
@@ -381,13 +453,13 @@ class _AiPracticePageState extends State<AiPracticePage> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _buildInfoItem(widget.topicEmoji, 'Level: ${widget.levelLabel}'),
+          Expanded(child: _buildInfoItem(widget.topicEmoji, 'Level: ${widget.levelLabel}')),
           Container(
             width: 1,
             height: 40,
             color: Colors.grey.shade300,
           ),
-          _buildInfoItem(widget.topicEmoji, widget.topic),
+          Expanded(child: _buildInfoItem(widget.topicEmoji, widget.topic)),
         ],
       ),
     );
@@ -400,6 +472,7 @@ class _AiPracticePageState extends State<AiPracticePage> {
         const SizedBox(height: 4),
         Text(
           label,
+          textAlign: TextAlign.center,
           style: const TextStyle(
             fontSize: 12,
             color: Color(0xFF5D3A6B),
@@ -427,7 +500,7 @@ class _AiPracticePageState extends State<AiPracticePage> {
           CircularProgressIndicator(color: Color(0xFF8B5E9E)),
           SizedBox(height: 15),
           Text(
-            'Creating new words for you... ✨',
+            'Creating new practice for you... ✨',
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w600,
@@ -474,15 +547,7 @@ class _AiPracticePageState extends State<AiPracticePage> {
               children: [
                 _buildPicture(),
                 const SizedBox(height: 10),
-                Text(
-                  currentExercise.word,
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF6B4C7A),
-                    letterSpacing: 2,
-                  ),
-                ),
+                _buildWords(),
               ],
             ),
           ),
@@ -492,48 +557,51 @@ class _AiPracticePageState extends State<AiPracticePage> {
             children: [
               _buildActionButton(
                 icon: Icons.headphones,
-                label: 'LISTEN',
+                label: isPlaying ? '...' : 'LISTEN',
                 color: const Color(0xFFA8D5A2),
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('🔊 Playing pronunciation: ${currentExercise.word}'),
-                      backgroundColor: const Color(0xFFA8D5A2),
-                      duration: const Duration(seconds: 2),
-                    ),
-                  );
-                },
+                onTap: _onListen,
               ),
               _buildActionButton(
                 icon: Icons.mic,
                 label: isListening ? '...' : 'SPEAK',
                 color: const Color(0xFFC9B3E0),
-                onTap: () {
-                  if (isListening) return;
-                  setState(() {
-                    isListening = true;
-                  });
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('🎤 Listening to your pronunciation...'),
-                      backgroundColor: Color(0xFFC9B3E0),
-                      duration: Duration(seconds: 2),
-                    ),
-                  );
-                  // Speech checking is not connected yet, so this always passes.
-                  Future.delayed(const Duration(seconds: 2), () {
-                    if (!mounted) return;
-                    setState(() {
-                      isListening = false;
-                    });
-                    _showResultDialog();
-                  });
-                },
+                onTap: _onSpeak,
               ),
             ],
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildWords() {
+    final words = currentWords;
+
+    return Wrap(
+      alignment: WrapAlignment.center,
+      spacing: 6,
+      runSpacing: 6,
+      children: List.generate(words.length, (i) {
+        final isLit = i == highlightedWord;
+
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: isLit ? highlightColor : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Text(
+            words[i],
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: isLit ? Colors.white : const Color(0xFF6B4C7A),
+              letterSpacing: 2,
+            ),
+          ),
+        );
+      }),
     );
   }
 
