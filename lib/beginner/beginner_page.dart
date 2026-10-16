@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:talkiepal/beginner/alphabets.dart';
 import 'package:talkiepal/beginner/numbers_page.dart';
 import 'package:talkiepal/practice/ai_practice_page.dart';
+import 'package:talkiepal/widgets/dino_mascot.dart';
 
 class BeginnerPage extends StatefulWidget {
   const BeginnerPage({super.key});
@@ -10,386 +11,265 @@ class BeginnerPage extends StatefulWidget {
   State<BeginnerPage> createState() => _BeginnerPageState();
 }
 
+class _Topic {
+  final String emoji;
+  final String title;
+  final Color background;
+  final Color edge;
+
+  const _Topic(this.emoji, this.title, this.background, this.edge);
+}
+
 class _BeginnerPageState extends State<BeginnerPage> {
+  static const Color _cream = Color(0xFFFFF8EC);
+  static const Color _levelColor = Color(0xFF4CAF50);
+  static const Color _levelDark = Color(0xFF2E7D32);
+  static const Color _dinoColor = Color(0xFF8BD17C);
+
+  static const List<_Topic> _topics = [
+    _Topic('🔤', 'Alphabets', Color(0xFFFFE0E6), Color(0xFFF48FB1)),
+    _Topic('🔢', 'Numbers', Color(0xFFE3F2FD), Color(0xFF90CAF9)),
+    _Topic('🎨', 'Colors', Color(0xFFFFF3D6), Color(0xFFFFCC80)),
+    _Topic('🐾', 'Animals', Color(0xFFE8F5E9), Color(0xFFA5D6A7)),
+    _Topic('🍎', 'Fruits', Color(0xFFFFEBEE), Color(0xFFEF9A9A)),
+    _Topic('🖐️', 'Body Parts', Color(0xFFF3E5F5), Color(0xFFCE93D8)),
+    _Topic('👕', 'Clothes', Color(0xFFE0F7FA), Color(0xFF80DEEA)),
+    _Topic('🚗', 'Vehicles', Color(0xFFFFF8E1), Color(0xFFFFE082)),
+  ];
+
+  void _openTopic(_Topic topic) {
+    final Widget page;
+
+    if (topic.title == 'Alphabets') {
+      page = const PracticeAlphabetsPage();
+    } else if (topic.title == 'Numbers') {
+      page = const PracticeNumbers1To10Page();
+    } else {
+      // The other topics get their practice words from the AI backend.
+      page = AiPracticePage(
+        level: 'beginner',
+        levelLabel: 'Beginner',
+        topic: topic.title,
+        topicEmoji: topic.emoji,
+      );
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => page),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          image: DecorationImage(
-            image: AssetImage('lib/assets/images/fullbg_level.png'),
-            fit: BoxFit.cover,
+      backgroundColor: _cream,
+      body: Stack(
+        children: [
+          // Soft coloured circles in the background
+          Positioned(top: -50, right: -50, child: _buildBlob(170, const Color(0xFFDDF5E3))),
+          Positioned(top: 420, left: -80, child: _buildBlob(160, const Color(0xFFFFE0F0))),
+          Positioned(bottom: 60, right: -60, child: _buildBlob(170, const Color(0xFFE3EEFF))),
+          SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildHeader(),
+                  const SizedBox(height: 18),
+                  _buildDinoCard(),
+                  const SizedBox(height: 24),
+                  const Text(
+                    'What do you want to learn? 🌟',
+                    style: TextStyle(
+                      fontSize: 19,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF6B4C7A),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  GridView.count(
+                    crossAxisCount: 2,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    mainAxisSpacing: 16,
+                    crossAxisSpacing: 16,
+                    childAspectRatio: 1.15,
+                    children: [for (final topic in _topics) _buildTopicTile(topic)],
+                  ),
+                  const SizedBox(height: 20),
+                  _buildTipCard(),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBlob(double size, Color color) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Row(
+      children: [
+        GestureDetector(
+          onTap: () => Navigator.pop(context),
+          child: Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              border: Border.all(color: _levelColor, width: 2.5),
+              boxShadow: const [BoxShadow(color: _levelDark, offset: Offset(0, 3))],
+            ),
+            child: const Icon(Icons.arrow_back_rounded, color: _levelDark),
           ),
         ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      const SizedBox(height: 10),
-
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          GestureDetector(
-                            onTap: () {
-                              Navigator.pop(context);
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFE8D5F0),
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.arrow_back,
-                                size: 24,
-                                color: Color(0xFF8B5E9E),
-                              ),
-                            ),
-                          ),
-                          const Text(
-                            'BEGINNER LEVEL',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF6B4C7A),
-                            ),
-                          ),
-                          const SizedBox(width: 40),
-                        ],
-                      ),
-
-                      const SizedBox(height: 20),
-
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFFA8D5A2), Color(0xFF8BC48A)],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.green.withOpacity(0.15),
-                              blurRadius: 8,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Text(
-                              'WELCOME, LITTLE STAR! ✨',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.black,
-                                letterSpacing: 1,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            const Text(
-                              "Let's have fun\nlearning to speak",
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black,
-                              ),
-                            ),
-                            const SizedBox(height: 15),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.4),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: const Text(
-                                'Easy & Super Fun! 🎈',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.black,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      const SizedBox(height: 25),
-
-                      const Text(
-                        'What will you learn today?',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF6B4C7A),
-                        ),
-                      ),
-
-                      const SizedBox(height: 15),
-
-                      // SUBTOPICS
-                      _buildLearningItem('Alphabets (A-Z)', Icons.abc),
-                      const SizedBox(height: 10),
-                      _buildLearningItem('Numbers (1-10)', Icons.looks_one),
-                      const SizedBox(height: 10),
-                      _buildLearningItem('Colors', Icons.palette),
-                      const SizedBox(height: 10),
-                      _buildLearningItem('Animals', Icons.pets),
-                      const SizedBox(height: 10),
-                      _buildLearningItem('Fruits', Icons.apple),
-                      const SizedBox(height: 10),
-                      _buildLearningItem('Body Parts', Icons.accessibility_new),
-                      const SizedBox(height: 10),
-                      _buildLearningItem('Clothes', Icons.checkroom),
-                      const SizedBox(height: 10),
-                      _buildLearningItem('Vehicles', Icons.directions_car),
-
-                      const SizedBox(height: 25),
-
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(15),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFFF0E0),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: const Color(0xFFFFCC99),
-                            width: 1.5,
-                          ),
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.lightbulb, color: Color(0xFFFFB347), size: 24),
-                                SizedBox(width: 8),
-                                Text(
-                                  'TIP FOR YOU',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14,
-                                    color: Colors.black,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 10),
-                            const Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  'Listen ',
-                                  style: TextStyle(fontSize: 13, color: Colors.black),
-                                ),
-                                Icon(Icons.headphones, size: 16, color: Colors.black),
-                                Text(
-                                  ', then repeat ',
-                                  style: TextStyle(fontSize: 13, color: Colors.black),
-                                ),
-                                Icon(Icons.music_note, size: 16, color: Colors.black),
-                              ],
-                            ),
-                            const SizedBox(height: 5),
-                            const Text(
-                              "It's okay to make mistakes!",
-                              textAlign: TextAlign.center,
-                              style: TextStyle(fontSize: 13, color: Colors.black),
-                            ),
-                            const SizedBox(height: 10),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFFFCC99),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: const Row(
-                                mainAxisSize: MainAxisSize.min,
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text(
-                                    'You are doing GREAT',
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.black,
-                                    ),
-                                  ),
-                                  SizedBox(width: 5),
-                                  Text('👍', style: TextStyle(fontSize: 14)),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      const SizedBox(height: 25),
-
-                      Center(
-                        child: GestureDetector(
-                          onTap: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Starting practice session...'),
-                                backgroundColor: Color(0xFFA8D5A2),
-                                duration: Duration(seconds: 2),
-                              ),
-                            );
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 35, vertical: 14),
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFF8B5E9E), Color(0xFFB47CC4)],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ),
-                              borderRadius: BorderRadius.circular(30),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.purple.withOpacity(0.2),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
-                            ),
-                            child: const Text(
-                              'START PRACTICE NOW',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                                letterSpacing: 1.5,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 30),
-                    ],
-                  ),
-                ),
-              ),
-            ],
+        const SizedBox(width: 12),
+        Container(
+          width: 34,
+          height: 34,
+          alignment: Alignment.center,
+          decoration: const BoxDecoration(
+            color: _levelColor,
+            shape: BoxShape.circle,
+            boxShadow: [BoxShadow(color: _levelDark, offset: Offset(0, 3))],
           ),
+          child: const Text(
+            'A',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white),
+          ),
+        ),
+        const SizedBox(width: 10),
+        const Text(
+          'Beginner',
+          style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: _levelDark),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDinoCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF81C784), _levelColor],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: Colors.white, width: 4),
+        boxShadow: const [BoxShadow(color: _levelDark, offset: Offset(0, 6))],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 120,
+            height: 120,
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.85),
+              shape: BoxShape.circle,
+            ),
+            child: const DinoMascot(color: _dinoColor, size: 104),
+          ),
+          const SizedBox(width: 8),
+          // Speech bubble
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Hi! I'm Dino! 👋",
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: _levelDark),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    "Let's learn our first words together!",
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF5D4E6D)),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTopicTile(_Topic topic) {
+    return GestureDetector(
+      onTap: () => _openTopic(topic),
+      child: Container(
+        decoration: BoxDecoration(
+          color: topic.background,
+          borderRadius: BorderRadius.circular(26),
+          border: Border.all(color: Colors.white, width: 4),
+          boxShadow: [BoxShadow(color: topic.edge, offset: const Offset(0, 6))],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+              alignment: Alignment.center,
+              decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+              child: Text(topic.emoji, style: const TextStyle(fontSize: 36)),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              topic.title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w900,
+                color: Color(0xFF4A3B57),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  // Topics whose practice words are generated by the AI backend.
-  static const Map<String, String> _aiTopicEmojis = {
-    'Colors': '🎨',
-    'Animals': '🐾',
-    'Fruits': '🍎',
-    'Body Parts': '🖐️',
-    'Clothes': '👕',
-    'Vehicles': '🚗',
-  };
-
-  Widget _buildLearningItem(String title, IconData icon) {
-    return GestureDetector(
-      onTap: () {
-        // CONDITION FOR ALPHABETS
-        if (title == 'Alphabets (A-Z)') {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const PracticeAlphabetsPage()),
-          );
-        } 
-        // CONDITION FOR NUMBERS (1-10)
-        else if (title == 'Numbers (1-10)') {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const PracticeNumbers1To10Page()),
-          );
-        }
-        // TOPICS WITH AI-GENERATED WORDS
-        else if (_aiTopicEmojis.containsKey(title)) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => AiPracticePage(
-                level: 'beginner',
-                levelLabel: 'Beginner',
-                topic: title,
-                topicEmoji: _aiTopicEmojis[title]!,
-              ),
+  Widget _buildTipCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF3D6),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFFFCC80), width: 2),
+      ),
+      child: const Row(
+        children: [
+          Text('💡', style: TextStyle(fontSize: 26)),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              "Listen first, then repeat. It's okay to make mistakes!",
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF8B6914)),
             ),
-          );
-        }
-        else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Opening $title...'),
-              backgroundColor: const Color(0xFFA8D5A2),
-              duration: const Duration(seconds: 1),
-            ),
-          );
-        }
-      },
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(15),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withOpacity(0.1),
-              blurRadius: 5,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 45,
-              height: 45,
-              decoration: BoxDecoration(
-                color: const Color(0xFFE8D5F0),
-                shape: BoxShape.circle,
-              ),
-              child: Center(
-                child: Icon(icon, size: 24, color: const Color(0xFF8B5E9E)),
-              ),
-            ),
-            const SizedBox(width: 15),
-            Expanded(
-              child: Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                  color: Color(0xFF5D3A6B),
-                ),
-              ),
-            ),
-            const Icon(
-              Icons.arrow_forward_ios,
-              size: 18,
-              color: Color(0xFFC9B3E0),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
