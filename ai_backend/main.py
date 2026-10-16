@@ -1,4 +1,5 @@
 import json
+import random
 import threading
 import time
 
@@ -376,6 +377,59 @@ def clean_exercises(raw_items, level: str, count: int, exclude: list[str]) -> li
     return cleaned
 
 
+def ask_llama_json(prompt: str, schema: dict, num_predict: int) -> dict:
+    """Ask Llama for JSON that follows the schema. Raises HTTPException on failure."""
+    try:
+        response = requests.post(
+            OLLAMA_URL,
+            json={
+                "model": MODEL_NAME,
+                "stream": False,
+                "keep_alive": OLLAMA_KEEP_ALIVE,
+                "format": schema,
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": "You create safe English speaking practice for young children. You always reply with valid JSON only."
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                "options": {
+                    # Higher temperature so each session gets new content.
+                    "temperature": 0.9,
+                    "num_predict": num_predict
+                }
+            },
+            timeout=120
+        )
+
+        response.raise_for_status()
+
+        return json.loads(response.json()["message"]["content"])
+
+    except requests.Timeout:
+        raise HTTPException(
+            status_code=504,
+            detail="Llama took too long to respond."
+        )
+
+    except requests.RequestException:
+        raise HTTPException(
+            status_code=503,
+            detail="Cannot connect to Llama. Check Ollama."
+        )
+
+    except (KeyError, TypeError, ValueError):
+        # json.JSONDecodeError is a ValueError
+        raise HTTPException(
+            status_code=502,
+            detail="Invalid response from Llama."
+        )
+
+
 @app.post("/generate-exercises", response_model=ExerciseResponse)
 def generate_exercises(request: ExerciseRequest):
 
@@ -396,61 +450,193 @@ def generate_exercises(request: ExerciseRequest):
 
     started = time.time()
 
+    data = ask_llama_json(
+        build_exercise_prompt(level, topic, request.count, request.exclude),
+        EXERCISE_SCHEMA,
+        num_predict=400
+    )
+
     try:
-        response = requests.post(
-            OLLAMA_URL,
-            json={
-                "model": MODEL_NAME,
-                "stream": False,
-                "keep_alive": OLLAMA_KEEP_ALIVE,
-                "format": EXERCISE_SCHEMA,
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": "You create safe English speaking practice for young children. You always reply with valid JSON only."
-                    },
-                    {
-                        "role": "user",
-                        "content": build_exercise_prompt(level, topic, request.count, request.exclude)
-                    }
-                ],
-                "options": {
-                    # Higher temperature so each session gets new words.
-                    "temperature": 0.9,
-                    "num_predict": 400
-                }
-            },
-            timeout=120
-        )
+        exercises = clean_exercises(data["exercises"], level, request.count, request.exclude)
+    except (KeyError, TypeError):
+        exercises = []
 
-        response.raise_for_status()
-
-        content = response.json()["message"]["content"]
-        raw_items = json.loads(content)["exercises"]
-        exercises = clean_exercises(raw_items, level, request.count, request.exclude)
-
-        if not exercises:
-            raise ValueError("No valid exercises from Llama")
-
-        print(f"[generate-exercises] {level}/{topic}: {len(exercises)} words in {time.time() - started:.1f}s")
-
-        return ExerciseResponse(level=level, topic=topic, exercises=exercises)
-
-    except requests.Timeout:
-        raise HTTPException(
-            status_code=504,
-            detail="Llama took too long to respond."
-        )
-
-    except requests.RequestException:
-        raise HTTPException(
-            status_code=503,
-            detail="Cannot connect to Llama. Check Ollama."
-        )
-
-    except (KeyError, TypeError, ValueError):
-        # json.JSONDecodeError is a ValueError
+    if not exercises:
         raise HTTPException(
             status_code=502,
             detail="Invalid response from Llama."
         )
+
+    print(f"[generate-exercises] {level}/{topic}: {len(exercises)} words in {time.time() - started:.1f}s")
+
+    return ExerciseResponse(level=level, topic=topic, exercises=exercises)
+
+
+# ---------------------------------------------------------------
+# AI-GENERATED QUESTIONS (INTERMEDIATE)
+# ---------------------------------------------------------------
+
+QUESTION_TOPICS = {
+    "About Me": "questions about the child, e.g. name, age, family, favourite things",
+    "Daily Routine": "questions about the child's day, e.g. waking up, meals, going to school",
+    "My School": "questions about school, e.g. teacher, subjects, friends, recess",
+    "Travel & Holiday": "questions about holidays and trips, e.g. where you went, how you travelled",
+    "Weather & Seasons": "questions about the weather, e.g. sunny, rainy, hot, what you wear",
+    "Feelings & Emotion": "questions about feelings, e.g. how you feel, what makes you happy",
+    "Places Around Town": "questions about places, e.g. shop, park, library, hospital",
+}
+
+QUESTION_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "questions": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "question": {"type": "string"},
+                    "correct_answer": {"type": "string"},
+                    "wrong_answers": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
+                },
+                "required": ["question", "correct_answer", "wrong_answers"],
+            },
+        }
+    },
+    "required": ["questions"],
+}
+
+# Letters, spaces and simple punctuation only.
+SENTENCE_CHARS = set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 '.,?!")
+
+
+class QuestionRequest(BaseModel):
+    topic: str = Field(min_length=1, max_length=40)
+    count: int = Field(default=5, ge=1, le=10)
+    exclude: list[str] = Field(default_factory=list, max_length=50)
+
+
+class Question(BaseModel):
+    question: str
+    options: list[str]
+    correct_index: int
+
+
+class QuestionResponse(BaseModel):
+    topic: str
+    questions: list[Question]
+
+
+def build_question_prompt(topic: str, count: int, exclude: list[str]) -> str:
+    avoid = "; ".join(exclude) or "none"
+    example = {
+        "questions": [{
+            "question": "What is your favourite colour?",
+            "correct_answer": "My favourite colour is red.",
+            "wrong_answers": ["I am eight years old.", "I go to school by bus."],
+        }]
+    }
+
+    return f"""
+Create {count} different speaking practice questions for children aged 7 to 10 who can answer simple questions in English.
+
+TOPIC: {topic} ({QUESTION_TOPICS[topic]})
+
+RULES:
+1. "question" is a short, simple question of 3 to 8 words, ending with "?".
+2. "correct_answer" is a full, simple sentence of 3 to 8 words that answers the question.
+3. "wrong_answers" are exactly 2 simple sentences that clearly answer a DIFFERENT question.
+4. Use easy, child-friendly, everyday words only.
+5. No duplicates. Do not ask these questions again: {avoid}.
+
+Reply with JSON only, for example:
+{json.dumps(example)}
+"""
+
+
+def is_simple_sentence(text: str, min_words: int, max_words: int) -> bool:
+    words = text.split()
+    return (
+        min_words <= len(words) <= max_words
+        and all(ch in SENTENCE_CHARS for ch in text)
+        and any(ch.isalpha() for ch in text)
+    )
+
+
+def clean_questions(raw_items, count: int, exclude: list[str]) -> list[Question]:
+    """Keep only valid, unique questions and shuffle their answers."""
+    seen = {q.strip().lower() for q in exclude}
+    cleaned = []
+
+    for item in raw_items:
+        if not isinstance(item, dict):
+            continue
+
+        question = " ".join(str(item.get("question", "")).split())
+        correct = " ".join(str(item.get("correct_answer", "")).split())
+        wrong = item.get("wrong_answers")
+
+        if not isinstance(wrong, list) or len(wrong) < 2:
+            continue
+        wrong = [" ".join(str(w).split()) for w in wrong[:2]]
+
+        if not question.endswith("?") or question.lower() in seen:
+            continue
+        if not is_simple_sentence(question, 3, 10):
+            continue
+        if not all(is_simple_sentence(a, 2, 10) for a in [correct, *wrong]):
+            continue
+        if len({a.lower() for a in [correct, *wrong]}) < 3:
+            continue
+
+        options = [correct, *wrong]
+        random.shuffle(options)
+
+        seen.add(question.lower())
+        cleaned.append(Question(
+            question=question,
+            options=options,
+            correct_index=options.index(correct),
+        ))
+
+        if len(cleaned) == count:
+            break
+
+    return cleaned
+
+
+@app.post("/generate-questions", response_model=QuestionResponse)
+def generate_questions(request: QuestionRequest):
+
+    topic = request.topic.strip()
+
+    if topic not in QUESTION_TOPICS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown topic: {request.topic}"
+        )
+
+    started = time.time()
+
+    data = ask_llama_json(
+        build_question_prompt(topic, request.count, request.exclude),
+        QUESTION_SCHEMA,
+        num_predict=900
+    )
+
+    try:
+        questions = clean_questions(data["questions"], request.count, request.exclude)
+    except (KeyError, TypeError):
+        questions = []
+
+    if not questions:
+        raise HTTPException(
+            status_code=502,
+            detail="Invalid response from Llama."
+        )
+
+    print(f"[generate-questions] {topic}: {len(questions)} questions in {time.time() - started:.1f}s")
+
+    return QuestionResponse(topic=topic, questions=questions)
