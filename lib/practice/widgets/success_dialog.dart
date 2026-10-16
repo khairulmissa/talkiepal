@@ -62,8 +62,8 @@ Future<void> showSuccessDialog(
                   ),
                   const SizedBox(height: 6),
                   const Text(
-                    '⭐ ⭐ ⭐',
-                    style: TextStyle(fontSize: 26),
+                    '⭐ ⭐ ⭐ ⭐ ⭐',
+                    style: TextStyle(fontSize: 24),
                   ),
                   if (detail != null) ...[
                     const SizedBox(height: 10),
