@@ -79,7 +79,7 @@ class QuestionService {
 
   static Future<QuestionResult> getQuestions({
     required String topic,
-    int count = 5,
+    int count = 10,
   }) async {
     final recent = _recentQuestions[topic] ?? [];
 

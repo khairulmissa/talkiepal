@@ -136,7 +136,7 @@ class ExerciseService {
   static Future<ExerciseResult> getExercises({
     required String level,
     required String topic,
-    int count = 5,
+    int count = 10,
   }) async {
     final key = '$level/$topic';
     final recent = _recentWords[key] ?? [];
