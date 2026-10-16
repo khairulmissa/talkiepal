@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:talkiepal/profile_page.dart';
 import 'package:talkiepal/widgets/dino_mascot.dart';
 import 'package:talkiepal/widgets/kids_bottom_nav.dart';
+import 'package:talkiepal/progress_page.dart';
 
 class GamePage extends StatefulWidget {
   const GamePage({super.key});
@@ -230,11 +231,9 @@ class _GamePageState extends State<GamePage> {
         // Already on this page
         break;
       case KidsTab.progress:
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Progress page coming soon!'),
-            duration: Duration(seconds: 1),
-          ),
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const ProgressPage()),
         );
         break;
       case KidsTab.profile:
