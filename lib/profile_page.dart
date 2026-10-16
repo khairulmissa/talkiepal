@@ -1,6 +1,7 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'game_page.dart';
-import 'main.dart';
+import 'package:talkiepal/services/current_kid.dart';
 import 'package:talkiepal/widgets/dino_mascot.dart';
 import 'package:talkiepal/widgets/kids_bottom_nav.dart';
 import 'package:talkiepal/progress_page.dart';
@@ -158,12 +159,15 @@ class _ProfilePageState extends State<ProfilePage> {
               shape: BoxShape.circle,
               border: Border.all(color: const Color(0xFFFFD54F), width: 4),
             ),
-            child: const DinoMascot(color: Color(0xFFB794F6), size: 86),
+            child: CurrentKid.photo != null
+                ? ClipOval(child: Image.memory(CurrentKid.photo!, fit: BoxFit.cover))
+                : const DinoMascot(color: Color(0xFFB794F6), size: 86),
           ),
           const SizedBox(height: 10),
-          const Text(
-            'Adam Shah',
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white),
+          Text(
+            CurrentKid.name ?? 'Little Star',
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white),
           ),
           const SizedBox(height: 6),
           Container(
@@ -172,14 +176,24 @@ class _ProfilePageState extends State<ProfilePage> {
               color: Colors.white.withValues(alpha: 0.9),
               borderRadius: BorderRadius.circular(20),
             ),
-            child: const Text(
-              '✉️ Adam@gmail.com',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: _plumDark),
+            child: Text(
+              '✉️ ${_loginEmail() ?? 'Not signed in'}',
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: _plumDark),
             ),
           ),
         ],
       ),
     );
+  }
+
+  /// Email of the parent account that is logged in.
+  String? _loginEmail() {
+    try {
+      return FirebaseAuth.instance.currentUser?.email;
+    } catch (_) {
+      // Firebase is not set up (e.g. in tests).
+      return null;
+    }
   }
 
   Widget _buildSectionTitle(String title) {
@@ -318,10 +332,7 @@ class _ProfilePageState extends State<ProfilePage> {
   void _onNavTap(KidsTab tab) {
     switch (tab) {
       case KidsTab.home:
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const HomePage()),
-        );
+        goToKidsHome(context);
         break;
       case KidsTab.game:
         Navigator.pushReplacement(
