@@ -23,13 +23,15 @@ class AiQuestionPage extends StatefulWidget {
 class _AiQuestionPageState extends State<AiQuestionPage> {
   bool isLoading = true;
   bool isPlaying = false;
-  bool isListening = false;
   int currentIndex = 0;
   List<PracticeQuestion> questions = [];
 
   // What is lit up during LISTEN (-1 = none).
   int highlightedWord = -1;
   int highlightedOption = -1;
+
+  // Answer the child tapped that was not correct (-1 = none).
+  int wrongOption = -1;
 
   // Bumped whenever the question changes, so an old highlight run stops.
   int _highlightRun = 0;
@@ -79,8 +81,8 @@ class _AiQuestionPageState extends State<AiQuestionPage> {
     _highlightRun++;
     highlightedWord = -1;
     highlightedOption = -1;
+    wrongOption = -1;
     isPlaying = false;
-    isListening = false;
   }
 
   /// Lights up the question word by word, then each answer.
@@ -108,7 +110,7 @@ class _AiQuestionPageState extends State<AiQuestionPage> {
   }
 
   Future<void> _onListen() async {
-    if (isPlaying || isListening) return;
+    if (isPlaying) return;
     setState(() {
       isPlaying = true;
     });
@@ -122,21 +124,71 @@ class _AiQuestionPageState extends State<AiQuestionPage> {
     });
   }
 
-  Future<void> _onSpeak() async {
-    if (isPlaying || isListening) return;
-    setState(() {
-      isListening = true;
-    });
+  void _onOptionTap(int i) {
+    if (isPlaying) return;
 
-    final run = _highlightRun;
-    await Future.delayed(const Duration(seconds: 2));
-    if (!mounted || run != _highlightRun) return;
+    if (i == currentQuestion.correctIndex) {
+      setState(() {
+        wrongOption = -1;
+      });
+      _showResultDialog();
+    } else {
+      setState(() {
+        wrongOption = i;
+      });
+      _showTryAgainDialog();
+    }
+  }
 
-    setState(() {
-      isListening = false;
-    });
-    // Speech checking is not connected yet, so this always passes.
-    _showResultDialog();
+  void _showTryAgainDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(25),
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(25),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFFFFB6B6), Color(0xFFFF6B6B)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(25),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  '❌ OOPS! ❌',
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 15),
+                const Text(
+                  'That is not the right answer. Listen again and try another one!',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 16, color: Colors.white),
+                ),
+                const SizedBox(height: 20),
+                _buildDialogButton(
+                  label: 'TRY AGAIN',
+                  color: const Color(0xFFFF6B6B),
+                  margin: EdgeInsets.zero,
+                  onTap: () => Navigator.pop(dialogContext),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   void _finish() {
@@ -248,6 +300,7 @@ class _AiQuestionPageState extends State<AiQuestionPage> {
     required String label,
     required EdgeInsets margin,
     required VoidCallback onTap,
+    Color color = const Color(0xFF6BCB77),
   }) {
     return GestureDetector(
       onTap: onTap,
@@ -261,10 +314,10 @@ class _AiQuestionPageState extends State<AiQuestionPage> {
         child: Center(
           child: Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.bold,
-              color: Color(0xFF6BCB77),
+              color: color,
             ),
           ),
         ),
@@ -397,7 +450,7 @@ class _AiQuestionPageState extends State<AiQuestionPage> {
       _buildListenButton(),
       const SizedBox(height: 25),
       const Text(
-        'POSSIBLE ANSWERS (Say one of these):',
+        'CHOOSE THE CORRECT ANSWER:',
         style: TextStyle(
           fontSize: 14,
           fontWeight: FontWeight.bold,
@@ -406,8 +459,6 @@ class _AiQuestionPageState extends State<AiQuestionPage> {
       ),
       const SizedBox(height: 15),
       for (var i = 0; i < currentQuestion.options.length; i++) _buildOption(i),
-      const SizedBox(height: 20),
-      _buildSpeakButton(),
       const SizedBox(height: 20),
       Container(
         padding: const EdgeInsets.all(12),
@@ -422,7 +473,7 @@ class _AiQuestionPageState extends State<AiQuestionPage> {
             SizedBox(width: 8),
             Flexible(
               child: Text(
-                'Click SPEAK and say your answer!',
+                'Listen, then tap the correct answer!',
                 style: TextStyle(fontSize: 12, color: Color(0xFF6B4C7A)),
               ),
             ),
@@ -533,101 +584,65 @@ class _AiQuestionPageState extends State<AiQuestionPage> {
 
   Widget _buildOption(int i) {
     final isLit = highlightedOption == i;
+    final isWrong = !isLit && wrongOption == i;
 
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
-      width: double.infinity,
-      padding: const EdgeInsets.all(15),
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        color: isLit ? const Color(0xFFFFB347).withValues(alpha: 0.3) : Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(
-          color: isLit ? const Color(0xFFFFB347) : Colors.grey.shade300,
-          width: isLit ? 2 : 1,
+    final Color accent = isLit
+        ? const Color(0xFFFFB347)
+        : isWrong
+            ? const Color(0xFFFF6B6B)
+            : const Color(0xFFE8D5F0);
+
+    return GestureDetector(
+      onTap: () => _onOptionTap(i),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        width: double.infinity,
+        padding: const EdgeInsets.all(15),
+        margin: const EdgeInsets.only(bottom: 10),
+        decoration: BoxDecoration(
+          color: isLit || isWrong ? accent.withValues(alpha: 0.2) : Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(
+            color: isLit || isWrong ? accent : Colors.grey.shade300,
+            width: isLit || isWrong ? 2 : 1,
+          ),
         ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 35,
-            height: 35,
-            decoration: BoxDecoration(
-              color: isLit ? const Color(0xFFFFB347) : const Color(0xFFE8D5F0),
-              shape: BoxShape.circle,
-            ),
-            child: Center(
-              child: Text(
-                String.fromCharCode(65 + i),
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: isLit ? Colors.white : const Color(0xFF8B5E9E),
-                ),
+        child: Row(
+          children: [
+            Container(
+              width: 35,
+              height: 35,
+              decoration: BoxDecoration(
+                color: accent,
+                shape: BoxShape.circle,
               ),
-            ),
-          ),
-          const SizedBox(width: 15),
-          Expanded(
-            child: Text(
-              currentQuestion.options[i],
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: isLit ? FontWeight.bold : FontWeight.normal,
-                color: isLit ? const Color(0xFFE67E22) : const Color(0xFF5D3A6B),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSpeakButton() {
-    return Center(
-      child: GestureDetector(
-        onTap: _onSpeak,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 18),
-          decoration: BoxDecoration(
-            gradient: isListening
-                ? const LinearGradient(colors: [Colors.grey, Colors.grey])
-                : const LinearGradient(
-                    colors: [Color(0xFFA8D5A2), Color(0xFF6BCB77)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-            borderRadius: BorderRadius.circular(50),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.green.withValues(alpha: 0.3),
-                blurRadius: 10,
-                offset: const Offset(0, 5),
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                isListening ? Icons.mic_off : Icons.mic,
-                color: Colors.white,
-                size: 30,
-              ),
-              const SizedBox(width: 12),
-              Flexible(
+              child: Center(
                 child: Text(
-                  isListening ? 'WAIT...' : 'SPEAK YOUR ANSWER',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
+                  String.fromCharCode(65 + i),
+                  style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: isLit || isWrong ? Colors.white : const Color(0xFF8B5E9E),
                   ),
                 ),
               ),
-            ],
-          ),
+            ),
+            const SizedBox(width: 15),
+            Expanded(
+              child: Text(
+                currentQuestion.options[i],
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: isLit || isWrong ? FontWeight.bold : FontWeight.normal,
+                  color: isLit
+                      ? const Color(0xFFE67E22)
+                      : isWrong
+                          ? const Color(0xFFFF6B6B)
+                          : const Color(0xFF5D3A6B),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
