@@ -3,6 +3,7 @@ import 'package:talkiepal/main.dart';
 import 'package:talkiepal/game_page.dart';
 import 'package:talkiepal/profile_page.dart';
 import 'package:talkiepal/services/question_service.dart';
+import 'package:talkiepal/practice/widgets/success_dialog.dart';
 
 /// Question-and-answer practice page for every Intermediate topic.
 /// The questions come from the AI backend instead of being written in the code.
@@ -216,83 +217,11 @@ class _AiQuestionPageState extends State<AiQuestionPage> {
   void _showResultDialog() {
     final bool isLastQuestion = currentIndex == questions.length - 1;
 
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext dialogContext) {
-        return Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(25),
-          ),
-          child: Container(
-            padding: const EdgeInsets.all(25),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFFA8D5A2), Color(0xFF6BCB77)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(25),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  '🎉 CORRECT! 🎉',
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 15),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(
-                    5,
-                    (index) => const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 2),
-                      child: Icon(
-                        Icons.star,
-                        size: 34,
-                        color: Colors.amber,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  '"${currentQuestion.correctAnswer}"',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 16, color: Colors.white),
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildDialogButton(
-                        label: 'TRY AGAIN',
-                        margin: const EdgeInsets.only(right: 8),
-                        onTap: () => Navigator.pop(dialogContext),
-                      ),
-                    ),
-                    Expanded(
-                      child: _buildDialogButton(
-                        label: isLastQuestion ? 'FINISH →' : 'NEXT →',
-                        margin: const EdgeInsets.only(left: 8),
-                        onTap: () {
-                          Navigator.pop(dialogContext);
-                          _goToNextQuestion();
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+    showSuccessDialog(
+      context,
+      detail: '"${currentQuestion.correctAnswer}"',
+      nextLabel: isLastQuestion ? 'FINISH →' : 'NEXT →',
+      onNext: _goToNextQuestion,
     );
   }
 
