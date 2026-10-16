@@ -4,6 +4,7 @@ import 'package:talkiepal/game_page.dart';
 import 'package:talkiepal/profile_page.dart';
 import 'package:talkiepal/practice/widgets/success_dialog.dart';
 import 'package:talkiepal/widgets/kids_bottom_nav.dart';
+import 'package:talkiepal/progress_page.dart';
 
 class PracticeAlphabetsPage extends StatefulWidget {
   const PracticeAlphabetsPage({super.key});
@@ -455,11 +456,9 @@ class _PracticeAlphabetsPageState extends State<PracticeAlphabetsPage> {
         );
         break;
       case KidsTab.progress:
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Progress page coming soon!'),
-            duration: Duration(seconds: 1),
-          ),
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const ProgressPage()),
         );
         break;
       case KidsTab.profile:

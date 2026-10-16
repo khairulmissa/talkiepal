@@ -5,6 +5,7 @@ import 'package:talkiepal/profile_page.dart';
 import 'package:talkiepal/services/exercise_service.dart';
 import 'package:talkiepal/practice/widgets/success_dialog.dart';
 import 'package:talkiepal/widgets/kids_bottom_nav.dart';
+import 'package:talkiepal/progress_page.dart';
 
 /// Special Sound practice for one target sound (R, S, TH, ...).
 /// Words mode shows one word; sentence mode (Mini Challenge) shows a sentence.
@@ -693,11 +694,9 @@ class _AiSoundPageState extends State<AiSoundPage> {
         );
         break;
       case KidsTab.progress:
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Progress page coming soon!'),
-            duration: Duration(seconds: 1),
-          ),
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const ProgressPage()),
         );
         break;
       case KidsTab.profile:

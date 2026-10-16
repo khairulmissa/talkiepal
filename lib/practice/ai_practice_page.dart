@@ -5,6 +5,7 @@ import 'package:talkiepal/profile_page.dart';
 import 'package:talkiepal/services/exercise_service.dart';
 import 'package:talkiepal/practice/widgets/success_dialog.dart';
 import 'package:talkiepal/widgets/kids_bottom_nav.dart';
+import 'package:talkiepal/progress_page.dart';
 
 /// One practice page for every topic. The words come from the AI backend
 /// instead of being written in the code.
@@ -574,11 +575,9 @@ class _AiPracticePageState extends State<AiPracticePage> {
         );
         break;
       case KidsTab.progress:
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Progress page coming soon!'),
-            duration: Duration(seconds: 1),
-          ),
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const ProgressPage()),
         );
         break;
       case KidsTab.profile:

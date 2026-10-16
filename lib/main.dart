@@ -8,6 +8,7 @@ import 'game_page.dart';
 import 'profile_page.dart';
 import 'parent/splash_screen.dart';
 import 'package:talkiepal/widgets/kids_bottom_nav.dart';
+import 'package:talkiepal/progress_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -417,11 +418,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         );
         break;
       case KidsTab.progress:
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Progress page coming soon!'),
-            duration: Duration(seconds: 1),
-          ),
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const ProgressPage()),
         );
         break;
       case KidsTab.profile:
