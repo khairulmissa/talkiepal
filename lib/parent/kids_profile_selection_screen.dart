@@ -7,6 +7,8 @@ import 'package:flutter/material.dart';
 
 import 'add_child_profile_screen.dart';
 import '../main.dart';
+import '../services/current_kid.dart';
+import '../widgets/kids_bottom_nav.dart';
 
 /// Parent must be signed in. Child profiles belong to that parent's account.
 class KidsProfileSelectionScreen extends StatelessWidget {
@@ -41,10 +43,12 @@ class KidsProfileSelectionScreen extends StatelessWidget {
     // StreamBuilder refreshes automatically after Firestore saves.
   }
 
-  void _openChild(BuildContext context, String childName) {
+  void _openChild(BuildContext context, String childName, Uint8List? photo) {
+  CurrentKid.select(name: childName, photo: photo);
   Navigator.push(
     context,
     MaterialPageRoute(
+      settings: const RouteSettings(name: kidsHomeRouteName),
       builder: (_) => HomePage(
         selectedKidName: childName,
       ),
@@ -136,7 +140,7 @@ class KidsProfileSelectionScreen extends StatelessWidget {
                             final name = (data['name'] ?? 'Child').toString();
                             final bytes = _photoBytes(data['photoBase64']);
                             return InkWell(
-                              onTap: () => _openChild(context, name),
+                              onTap: () => _openChild(context, name, bytes),
                               borderRadius: BorderRadius.circular(16),
                               child: Column(children: [
                                 Expanded(child: Container(

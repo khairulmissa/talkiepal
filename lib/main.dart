@@ -7,6 +7,7 @@ import 'special_sound/specialsound_page.dart';
 import 'game_page.dart';
 import 'profile_page.dart';
 import 'parent/splash_screen.dart';
+import 'services/current_kid.dart';
 import 'package:talkiepal/widgets/kids_bottom_nav.dart';
 import 'package:talkiepal/progress_page.dart';
 
@@ -73,7 +74,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 
   @override
   Widget build(BuildContext context) {
-    final kidName = widget.selectedKidName ?? "Khairulmissa";
+    final kidName = widget.selectedKidName ?? CurrentKid.name ?? "Khairulmissa";
 
     return Scaffold(
       backgroundColor: _cream,

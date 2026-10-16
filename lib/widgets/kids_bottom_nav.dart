@@ -3,6 +3,18 @@ import 'package:flutter/material.dart';
 /// The tabs in the kids bottom menu.
 enum KidsTab { home, game, progress, profile }
 
+/// Route name of the kids Home page opened from the profile screen.
+const String kidsHomeRouteName = 'kids_home';
+
+/// Goes back to the kids Home page that is already open, so the child's
+/// name stays the same, instead of opening a new Home page.
+void goToKidsHome(BuildContext context) {
+  Navigator.popUntil(
+    context,
+    (route) => route.settings.name == kidsHomeRouteName || route.isFirst,
+  );
+}
+
 /// Rounded, floating bottom menu used on every kids page.
 /// [selected] is the current page (null on practice pages).
 /// Each page decides what happens on tap through [onTap].

@@ -225,7 +225,7 @@ class _GamePageState extends State<GamePage> {
   void _onNavTap(KidsTab tab) {
     switch (tab) {
       case KidsTab.home:
-        Navigator.pop(context);
+        goToKidsHome(context);
         break;
       case KidsTab.game:
         // Already on this page

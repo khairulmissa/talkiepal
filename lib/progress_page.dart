@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:talkiepal/game_page.dart';
-import 'package:talkiepal/main.dart';
 import 'package:talkiepal/profile_page.dart';
+import 'package:talkiepal/services/current_kid.dart';
 import 'package:talkiepal/widgets/dino_mascot.dart';
 import 'package:talkiepal/widgets/kids_bottom_nav.dart';
 
@@ -229,7 +229,7 @@ class _ProgressPageState extends State<ProgressPage> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${data.kidName} practised ${data.daysThisWeek} days this week!',
+                    '${CurrentKid.name ?? data.kidName} practised ${data.daysThisWeek} days this week!',
                     style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF5D4E6D)),
                   ),
                 ],
@@ -409,10 +409,7 @@ class _ProgressPageState extends State<ProgressPage> {
   void _onNavTap(KidsTab tab) {
     switch (tab) {
       case KidsTab.home:
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const HomePage()),
-        );
+        goToKidsHome(context);
         break;
       case KidsTab.game:
         Navigator.pushReplacement(

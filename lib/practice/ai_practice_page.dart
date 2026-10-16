@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:talkiepal/main.dart';
 import 'package:talkiepal/game_page.dart';
 import 'package:talkiepal/profile_page.dart';
 import 'package:talkiepal/services/exercise_service.dart';
@@ -563,10 +562,7 @@ class _AiPracticePageState extends State<AiPracticePage> {
   void _onNavTap(KidsTab tab) {
     switch (tab) {
       case KidsTab.home:
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const HomePage()),
-        );
+        goToKidsHome(context);
         break;
       case KidsTab.game:
         Navigator.pushReplacement(
