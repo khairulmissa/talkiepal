@@ -65,354 +65,367 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     super.dispose();
   }
 
+  static const Color _cream = Color(0xFFFFF8EC);
+  static const Color _purple = Color(0xFF6B4C7A);
+  static const Color _softPurple = Color(0xFF9A7FA8);
+
   @override
   Widget build(BuildContext context) {
     final kidName = widget.selectedKidName ?? "Khairulmissa";
-    
-    return Scaffold(
-      backgroundColor: const Color(0xFFFDF5E6),
-      body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 10),
 
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Scaffold(
+      backgroundColor: _cream,
+      body: Stack(
+        children: [
+          // Soft coloured circles in the background
+          Positioned(top: -60, right: -40, child: _buildBlob(180, const Color(0xFFFFE0F0))),
+          Positioned(top: 260, left: -70, child: _buildBlob(150, const Color(0xFFDDF5E3))),
+          Positioned(bottom: 120, right: -60, child: _buildBlob(170, const Color(0xFFE3EEFF))),
+          SafeArea(
+            child: Column(
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
+                        _buildHeader(kidName),
+                        const SizedBox(height: 18),
+                        _buildHeroBanner(),
+                        const SizedBox(height: 26),
+                        const Row(
                           children: [
-                            const Text(
-                              'Hello, ',
-                              style: TextStyle(
-                                fontSize: 18,
-                                color: Color(0xFF6B4C7A),
-                              ),
-                            ),
+                            Text('🦖', style: TextStyle(fontSize: 26)),
+                            SizedBox(width: 8),
                             Text(
-                              kidName,
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF6B4C7A),
+                              'Choose Your Level',
+                              style: TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.w900,
+                                color: _purple,
                               ),
-                            ),
-                            const SizedBox(width: 5),
-                            AnimatedBuilder(
-                              animation: _waveController,
-                              builder: (context, child) {
-                                return Transform.rotate(
-                                  angle: _waveController.value * 0.3,
-                                  child: const Text(
-                                    '👋',
-                                    style: TextStyle(fontSize: 24),
-                                  ),
-                                );
-                              },
                             ),
                           ],
                         ),
-                        Container(
-                          width: 45,
-                          height: 45,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFE8D5F0),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.person,
-                            size: 25,
-                            color: Color(0xFF8B5E9E),
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 20),
-
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 25, horizontal: 20),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(25),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.purple.withOpacity(0.15),
-                            blurRadius: 10,
-                            offset: const Offset(0, 5),
-                          ),
-                        ],
-                        image: const DecorationImage(
-                          image: AssetImage('lib/assets/images/background_talkiepal_kotak.png'),
-                          fit: BoxFit.cover,
-                          colorFilter: ColorFilter.mode(
-                            Colors.black26,
-                            BlendMode.darken,
-                          ),
-                        ),
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF8B5E9E), Color(0xFFB47CC4)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                      ),
-                      child: Column(
-                        children: [
-                          const Text(
-                            'TalkiePal',
-                            style: TextStyle(
-                              fontSize: 32,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                              letterSpacing: 2,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            'Practice. Pronounce. Perfect.',
-                            style: TextStyle(
-                              fontSize: 18,
-                              color: Colors.amber,
-                              letterSpacing: 1,
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 10),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(30),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.grey.withOpacity(0.1),
-                                  blurRadius: 5,
-                                ),
-                              ],
-                            ),
-                            child: const Text(
-                              "Let's go Practice!",
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF8B5E9E),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 25),
-
-                    const Row(
-                      children: [
-                        Text(
-                          'Choose Your Level',
+                        const SizedBox(height: 4),
+                        const Text(
+                          'Pick a dino friend to play with!',
                           style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF6B4C7A),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: _softPurple,
                           ),
                         ),
-                        SizedBox(width: 8),
-                        Icon(
-                          Icons.arrow_drop_down,
-                          color: Color(0xFFB47CC4),
-                          size: 24,
+                        const SizedBox(height: 16),
+                        _buildLevelCard(
+                          letter: 'A',
+                          title: 'Beginner',
+                          subtitle: '🍎 First words',
+                          imagePath: 'lib/assets/images/bg_beginner4.png',
+                          color: const Color(0xFF4CAF50),
+                          darkColor: const Color(0xFF2E7D32),
+                          page: const BeginnerPage(),
                         ),
+                        const SizedBox(height: 16),
+                        _buildLevelCard(
+                          letter: 'B',
+                          title: 'Pre Intermediate',
+                          subtitle: '💬 Short phrases',
+                          imagePath: 'lib/assets/images/bg_pre_inter2.png',
+                          color: const Color(0xFF42A5F5),
+                          darkColor: const Color(0xFF1565C0),
+                          page: const PreIntermediatePage(),
+                        ),
+                        const SizedBox(height: 16),
+                        _buildLevelCard(
+                          letter: 'C',
+                          title: 'Intermediate',
+                          subtitle: '❓ Fun questions',
+                          imagePath: 'lib/assets/images/bg_inter2.png',
+                          color: const Color(0xFFFF8A3D),
+                          darkColor: const Color(0xFFD84315),
+                          page: const IntermediatePage(),
+                        ),
+                        const SizedBox(height: 16),
+                        _buildLevelCard(
+                          letter: 'D',
+                          title: 'Special Sound',
+                          subtitle: '🎤 Tricky sounds',
+                          imagePath: 'lib/assets/images/bg_ss3.png',
+                          color: const Color(0xFFD81B8C),
+                          darkColor: const Color(0xFF9C1361),
+                          page: const SpecialSoundPage(),
+                        ),
+                        const SizedBox(height: 10),
                       ],
                     ),
-
-                    const SizedBox(height: 20),
-
-                    _buildLevelRowWithImage(
-                      letter: 'A',
-                      title: 'BEGINNER',
-                      imagePath: 'lib/assets/images/bg_beginner4.png',
-                      defaultColor: const Color(0xFFA8D5A2),
-                    ),
-
-                    const SizedBox(height: 15),
-
-                    _buildLevelRowWithImage(
-                      letter: 'B',
-                      title: 'PRE INTERMEDIATE',
-                      imagePath: 'lib/assets/images/bg_pre_inter2.png',
-                      defaultColor: const Color(0xFFFFCC99),
-                    ),
-
-                    const SizedBox(height: 15),
-
-                    _buildLevelRowWithImage(
-                      letter: 'C',
-                      title: 'INTERMEDIATE',
-                      imagePath: 'lib/assets/images/bg_inter2.png',
-                      defaultColor: const Color(0xFFC9B3E0),
-                    ),
-
-                    const SizedBox(height: 15),
-
-                    _buildLevelRowWithImage(
-                      letter: 'D',
-                      title: 'SPECIAL SOUND',
-                      imagePath: 'lib/assets/images/bg_ss3.png',
-                      defaultColor: const Color(0xFFFFB5C0),
-                    ),
-
-                    const SizedBox(height: 30),
-                  ],
+                  ),
                 ),
-              ),
+                _buildBottomNav(),
+              ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
 
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(20),
-                  topRight: Radius.circular(20),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.grey.withOpacity(0.1),
-                    spreadRadius: 1,
-                    blurRadius: 8,
+  Widget _buildBlob(double size, Color color) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+    );
+  }
+
+  Widget _buildHeader(String kidName) {
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Flexible(
+                    child: Text(
+                      'Hello, $kidName!',
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        color: _purple,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  AnimatedBuilder(
+                    animation: _waveController,
+                    builder: (context, child) {
+                      return Transform.rotate(
+                        angle: _waveController.value * 0.3,
+                        child: child,
+                      );
+                    },
+                    child: const Text('👋', style: TextStyle(fontSize: 24)),
                   ),
                 ],
               ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _buildNavItem(Icons.home, 'Home', true),
-                    _buildNavItem(Icons.gamepad, 'Game', false),
-                    _buildNavItem(Icons.bar_chart, 'Progress', false),
-                    _buildNavItem(Icons.person, 'Profile', false),
-                  ],
+              const Text(
+                'Ready to talk with your dino friends?',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: _softPurple,
                 ),
               ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 12),
+        // Profile button (switch to parent profile)
+        Container(
+          width: 54,
+          height: 54,
+          decoration: BoxDecoration(
+            color: const Color(0xFFE8D5F0),
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white, width: 3),
+            boxShadow: const [
+              BoxShadow(color: Color(0x22000000), blurRadius: 8, offset: Offset(0, 3)),
+            ],
+          ),
+          child: const Icon(Icons.person_rounded, size: 30, color: Color(0xFF8B5E9E)),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHeroBanner() {
+    return Container(
+      width: double.infinity,
+      height: 230,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: Colors.white, width: 5),
+        boxShadow: const [
+          BoxShadow(color: Color(0xFF7E57C2), offset: Offset(0, 7)),
+        ],
+        image: const DecorationImage(
+          image: AssetImage('lib/assets/images/background_talkiepal_kotak.png'),
+          fit: BoxFit.cover,
+        ),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Text(
+            'TalkiePal',
+            style: TextStyle(
+              fontSize: 36,
+              fontWeight: FontWeight.w900,
+              color: Colors.white,
+              letterSpacing: 1.5,
+              shadows: [Shadow(color: Color(0x66000000), offset: Offset(0, 3), blurRadius: 6)],
             ),
+          ),
+          Container(
+            margin: const EdgeInsets.only(top: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFD54F),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: const Text(
+              'Practice • Pronounce • Perfect',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w900,
+                color: Color(0xFF6A1B9A),
+              ),
+            ),
+          ),
+          const SizedBox(height: 18),
+          // Decoration only, not a button
+          const Text(
+            "✨ Let's Practice! ✨",
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w900,
+              color: Colors.white,
+              shadows: [Shadow(color: Color(0x88000000), offset: Offset(0, 2), blurRadius: 6)],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLevelCard({
+    required String letter,
+    required String title,
+    required String subtitle,
+    required String imagePath,
+    required Color color,
+    required Color darkColor,
+    required Widget page,
+  }) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => page),
+        );
+      },
+      child: Container(
+        height: 118,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(color: Colors.white, width: 4),
+          boxShadow: [BoxShadow(color: darkColor, offset: const Offset(0, 6))],
+          image: DecorationImage(
+            image: AssetImage(imagePath),
+            fit: BoxFit.cover,
+          ),
+        ),
+        child: Row(
+          children: [
+            const SizedBox(width: 12),
+            // White label so the text is always easy to read
+            Container(
+              constraints: const BoxConstraints(maxWidth: 215),
+              padding: const EdgeInsets.fromLTRB(8, 8, 16, 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.92),
+                borderRadius: BorderRadius.circular(22),
+                boxShadow: const [
+                  BoxShadow(color: Color(0x22000000), blurRadius: 6, offset: Offset(0, 2)),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: color,
+                      shape: BoxShape.circle,
+                      boxShadow: [BoxShadow(color: darkColor, offset: const Offset(0, 3))],
+                    ),
+                    child: Text(
+                      letter,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Flexible(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          title,
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w900,
+                            color: darkColor,
+                            height: 1.1,
+                          ),
+                        ),
+                        Text(
+                          subtitle,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF7A6A85),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Spacer(),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildLevelRowWithImage({
-    required String letter,
-    required String title,
-    required String imagePath,
-    required Color defaultColor,
-  }) {
+  Widget _buildBottomNav() {
     return Container(
-      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(15),
-        boxShadow: [
-          BoxShadow(
-            color: defaultColor.withOpacity(0.3),
-            blurRadius: 6,
-            offset: const Offset(0, 3),
-          ),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(30),
+        boxShadow: const [
+          BoxShadow(color: Color(0x22000000), blurRadius: 12, offset: Offset(0, 4)),
         ],
-        image: DecorationImage(
-          image: AssetImage(imagePath),
-          fit: BoxFit.cover,
-          colorFilter: ColorFilter.mode(
-            defaultColor.withOpacity(0.5),
-            BlendMode.darken,
-          ),
-        ),
       ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () {
-            if (title == 'BEGINNER') {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const BeginnerPage()),
-              );
-            } else if (title == 'PRE INTERMEDIATE') {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const PreIntermediatePage()),
-              );
-            } else if (title == 'INTERMEDIATE') {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const IntermediatePage()),
-              );
-            } else if (title == 'SPECIAL SOUND') {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const SpecialSoundPage()),
-              );
-            } else {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('$title coming soon! 🌟'),
-                  backgroundColor: defaultColor,
-                  duration: const Duration(seconds: 2),
-                ),
-              );
-            }
-          },
-          borderRadius: BorderRadius.circular(15),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-            child: Row(
-              children: [
-                Container(
-                  width: 45,
-                  height: 45,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.35),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Center(
-                    child: Text(
-                      letter,
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 15),
-                Expanded(
-                  child: Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ),
-                const Icon(
-                  Icons.arrow_forward_ios,
-                  size: 18,
-                  color: Colors.white,
-                ),
-              ],
-            ),
-          ),
-        ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          _buildNavItem(Icons.home_rounded, 'Home', true),
+          _buildNavItem(Icons.sports_esports_rounded, 'Game', false),
+          _buildNavItem(Icons.bar_chart_rounded, 'Progress', false),
+          _buildNavItem(Icons.person_rounded, 'Profile', false),
+        ],
       ),
     );
   }
 
   Widget _buildNavItem(IconData icon, String label, bool isSelected) {
+    const Color selectedColor = Color(0xFF8E24AA);
+
     return GestureDetector(
       onTap: () {
         if (label == 'Home') {
@@ -436,24 +449,24 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           );
         }
       },
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            icon,
-            color: isSelected ? const Color(0xFFB47CC4) : Colors.grey.shade400,
-            size: 24,
-          ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              color: isSelected ? const Color(0xFFB47CC4) : Colors.grey.shade400,
-              fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-            ),
-          ),
-        ],
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: isSelected ? 16 : 8, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFFF3E5F5) : Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: isSelected ? selectedColor : Colors.grey.shade400, size: 26),
+            if (isSelected) ...[
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: const TextStyle(fontWeight: FontWeight.w900, color: selectedColor),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
