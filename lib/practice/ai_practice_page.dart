@@ -538,7 +538,7 @@ class _AiPracticePageState extends State<AiPracticePage> {
   }
 
   Widget _buildPicture() {
-    final emojiPicture = Container(
+    return Container(
       width: 100,
       height: 100,
       alignment: Alignment.center,
@@ -550,17 +550,6 @@ class _AiPracticePageState extends State<AiPracticePage> {
         currentExercise.emoji,
         style: const TextStyle(fontSize: 50),
       ),
-    );
-
-    final image = currentExercise.image;
-    if (image == null) return emojiPicture;
-
-    return Image.asset(
-      image,
-      width: 100,
-      height: 100,
-      fit: BoxFit.contain,
-      errorBuilder: (context, error, stackTrace) => emojiPicture,
     );
   }
 
