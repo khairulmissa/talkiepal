@@ -247,8 +247,18 @@ LEVEL_RULES = {
     "beginner": {
         "description": "children aged 3 to 6 who are just starting to speak English",
         "word_rule": "ONE single, simple, common English word (no spaces, no hyphens)",
+        "min_words": 1,
         "max_words": 1,
         "max_length": 10,
+        "example": {"word": "CAT", "emoji": "🐱"},
+    },
+    "pre_intermediate": {
+        "description": "children aged 5 to 8 who know basic English words and are starting to join words together",
+        "word_rule": "a short, simple phrase or sentence of 2 to 4 easy words (for example BRUSH TEETH or I AM HAPPY), no punctuation and no apostrophes",
+        "min_words": 2,
+        "max_words": 4,
+        "max_length": 30,
+        "example": {"word": "I AM HAPPY", "emoji": "😊"},
     },
 }
 
@@ -261,6 +271,16 @@ LEVEL_TOPICS = {
         "Body Parts": "parts of the human body",
         "Clothes": "everyday clothing items",
         "Vehicles": "common vehicles and transport",
+    },
+    "pre_intermediate": {
+        "My Morning Routine": "things a child does in the morning, e.g. I WAKE UP",
+        "My Feelings": "simple feelings, e.g. I AM HAPPY",
+        "Things I Like": "activities a child likes, e.g. I LIKE TO DRAW",
+        "School & Classroom": "people, objects and actions at school",
+        "Hobbies & Free Time": "fun activities, e.g. PLAYING FOOTBALL",
+        "Daily Routine": "everyday actions, e.g. EAT BREAKFAST",
+        "Home & Rooms": "rooms and things at home, e.g. LIVING ROOM",
+        "Shopping & Toys": "toys and shopping items, e.g. TEDDY BEAR",
     },
 }
 
@@ -307,20 +327,20 @@ def build_exercise_prompt(level: str, topic: str, count: int, exclude: list[str]
     avoid = ", ".join(w.upper() for w in exclude) or "none"
 
     return f"""
-Create {count} different pronunciation practice words for {rules["description"]}.
+Create {count} different speaking practice items for {rules["description"]}.
 
 TOPIC: {topic} ({topic_hint})
 
 RULES:
 1. Each item is {rules["word_rule"]}.
-2. Every word MUST belong to the topic "{topic}".
+2. Every item MUST belong to the topic "{topic}".
 3. Use easy, child-friendly, everyday words only.
-4. No duplicates. Do not use these words: {avoid}.
+4. No duplicates. Do not use these: {avoid}.
 5. "word" must be in UPPERCASE letters only.
-6. "emoji" is ONE emoji that shows the word.
+6. "emoji" is ONE emoji that shows the item.
 
 Reply with JSON only, for example:
-{{"exercises": [{{"word": "CAT", "emoji": "🐱"}}]}}
+{json.dumps({"exercises": [rules["example"]]}, ensure_ascii=False)}
 """
 
 
@@ -334,13 +354,13 @@ def clean_exercises(raw_items, level: str, count: int, exclude: list[str]) -> li
         if not isinstance(item, dict):
             continue
 
-        word = str(item.get("word", "")).strip().upper()
+        parts = str(item.get("word", "")).upper().split()
+        word = " ".join(parts)
         emoji = str(item.get("emoji", "")).strip()[:8]
-        parts = word.split()
 
         if not word or word in seen:
             continue
-        if len(parts) > rules["max_words"]:
+        if not rules["min_words"] <= len(parts) <= rules["max_words"]:
             continue
         if not all(part.isalpha() and part.isascii() for part in parts):
             continue

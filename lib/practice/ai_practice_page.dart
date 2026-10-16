@@ -162,7 +162,7 @@ class _AiPracticePageState extends State<AiPracticePage> {
                     ),
                     Expanded(
                       child: _buildDialogButton(
-                        label: isLastExercise ? 'FINISH →' : 'NEXT WORD →',
+                        label: isLastExercise ? 'FINISH →' : 'NEXT →',
                         color: const Color(0xFF8B5E9E),
                         margin: const EdgeInsets.only(left: 8),
                         onTap: () {
@@ -427,7 +427,7 @@ class _AiPracticePageState extends State<AiPracticePage> {
           CircularProgressIndicator(color: Color(0xFF8B5E9E)),
           SizedBox(height: 15),
           Text(
-            'Creating new words for you... ✨',
+            'Creating new practice for you... ✨',
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w600,
@@ -476,6 +476,7 @@ class _AiPracticePageState extends State<AiPracticePage> {
                 const SizedBox(height: 10),
                 Text(
                   currentExercise.word,
+                  textAlign: TextAlign.center,
                   style: const TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,

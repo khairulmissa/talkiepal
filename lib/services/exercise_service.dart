@@ -23,30 +23,67 @@ class ExerciseResult {
 /// Gets practice words from the AI backend, with offline words as backup.
 class ExerciseService {
   // Backup words with emoji, used when the AI is not available.
-  static const Map<String, Map<String, String>> _offlineWords = {
-    'Colors': {
-      'RED': '🔴', 'BLUE': '🔵', 'GREEN': '🟢', 'YELLOW': '🟡', 'ORANGE': '🟠',
-      'PURPLE': '🟣', 'BROWN': '🟤', 'BLACK': '⚫', 'WHITE': '⚪', 'PINK': '🩷',
+  // Keyed by level, then topic.
+  static const Map<String, Map<String, Map<String, String>>> _offlineWords = {
+    'beginner': {
+      'Colors': {
+        'RED': '🔴', 'BLUE': '🔵', 'GREEN': '🟢', 'YELLOW': '🟡', 'ORANGE': '🟠',
+        'PURPLE': '🟣', 'BROWN': '🟤', 'BLACK': '⚫', 'WHITE': '⚪', 'PINK': '🩷',
+      },
+      'Animals': {
+        'CAT': '🐱', 'DOG': '🐶', 'COW': '🐮', 'BIRD': '🐦', 'FISH': '🐟',
+        'RABBIT': '🐰', 'FROG': '🐸', 'MONKEY': '🐵', 'LION': '🦁', 'ELEPHANT': '🐘',
+      },
+      'Fruits': {
+        'APPLE': '🍎', 'BANANA': '🍌', 'CHERRY': '🍒', 'GRAPE': '🍇', 'MANGO': '🥭',
+        'ORANGE': '🍊', 'PEAR': '🍐', 'PINEAPPLE': '🍍', 'STRAWBERRY': '🍓', 'WATERMELON': '🍉',
+      },
+      'Body Parts': {
+        'ARM': '💪', 'EAR': '👂', 'EYES': '👀', 'FINGER': '☝️', 'FOOT': '🦶',
+        'HAND': '✋', 'HEAD': '🙂', 'LEG': '🦵', 'MOUTH': '👄', 'NOSE': '👃',
+      },
+      'Clothes': {
+        'DRESS': '👗', 'GLOVES': '🧤', 'HAT': '👒', 'JACKET': '🧥', 'PANTS': '👖',
+        'SCARF': '🧣', 'SHIRT': '👕', 'SHOES': '👟', 'SOCKS': '🧦', 'CAP': '🧢',
+      },
+      'Vehicles': {
+        'AIRPLANE': '✈️', 'BICYCLE': '🚲', 'BOAT': '⛵', 'BUS': '🚌', 'CAR': '🚗',
+        'HELICOPTER': '🚁', 'MOTORCYCLE': '🏍️', 'TRAIN': '🚆', 'TRUCK': '🚚',
+      },
     },
-    'Animals': {
-      'CAT': '🐱', 'DOG': '🐶', 'COW': '🐮', 'BIRD': '🐦', 'FISH': '🐟',
-      'RABBIT': '🐰', 'FROG': '🐸', 'MONKEY': '🐵', 'LION': '🦁', 'ELEPHANT': '🐘',
-    },
-    'Fruits': {
-      'APPLE': '🍎', 'BANANA': '🍌', 'CHERRY': '🍒', 'GRAPE': '🍇', 'MANGO': '🥭',
-      'ORANGE': '🍊', 'PEAR': '🍐', 'PINEAPPLE': '🍍', 'STRAWBERRY': '🍓', 'WATERMELON': '🍉',
-    },
-    'Body Parts': {
-      'ARM': '💪', 'EAR': '👂', 'EYES': '👀', 'FINGER': '☝️', 'FOOT': '🦶',
-      'HAND': '✋', 'HEAD': '🙂', 'LEG': '🦵', 'MOUTH': '👄', 'NOSE': '👃',
-    },
-    'Clothes': {
-      'DRESS': '👗', 'GLOVES': '🧤', 'HAT': '👒', 'JACKET': '🧥', 'PANTS': '👖',
-      'SCARF': '🧣', 'SHIRT': '👕', 'SHOES': '👟', 'SOCKS': '🧦', 'CAP': '🧢',
-    },
-    'Vehicles': {
-      'AIRPLANE': '✈️', 'BICYCLE': '🚲', 'BOAT': '⛵', 'BUS': '🚌', 'CAR': '🚗',
-      'HELICOPTER': '🚁', 'MOTORCYCLE': '🏍️', 'TRAIN': '🚆', 'TRUCK': '🚚',
+    'pre_intermediate': {
+      'My Morning Routine': {
+        'I WAKE UP': '⏰', 'I BRUSH MY TEETH': '🪥', 'I WASH MY FACE': '🧼',
+        'I EAT BREAKFAST': '🥣', 'I GET DRESSED': '👕', 'I COMB MY HAIR': '💇',
+      },
+      'My Feelings': {
+        'I AM HAPPY': '😊', 'I AM SAD': '😢', 'I AM SLEEPY': '😴', 'I AM ANGRY': '😠',
+        'I AM SCARED': '😨', 'I AM HUNGRY': '😋', 'I AM TIRED': '🥱',
+      },
+      'Things I Like': {
+        'I LIKE TO PLAY': '⚽', 'I LIKE TO DRAW': '🖍️', 'I LIKE TO SING': '🎤',
+        'I LIKE TO DANCE': '💃', 'I LIKE TO READ': '📖', 'I LIKE TO SWIM': '🏊',
+      },
+      'School & Classroom': {
+        'MY TEACHER': '👩‍🏫', 'MY BAG': '🎒', 'READ A BOOK': '📖', 'MY PENCIL': '✏️',
+        'SIT DOWN': '🪑', 'RAISE YOUR HAND': '✋',
+      },
+      'Hobbies & Free Time': {
+        'PLAYING FOOTBALL': '⚽', 'READING BOOKS': '📚', 'LISTENING TO MUSIC': '🎵',
+        'RIDING A BIKE': '🚲', 'DRAWING PICTURES': '🎨', 'FLYING A KITE': '🪁',
+      },
+      'Daily Routine': {
+        'WAKE UP': '⏰', 'EAT BREAKFAST': '🥣', 'BRUSH TEETH': '🪥', 'TAKE A BATH': '🛁',
+        'GO TO SCHOOL': '🏫', 'GO TO BED': '🛏️',
+      },
+      'Home & Rooms': {
+        'LIVING ROOM': '🛋️', 'BEDROOM': '🛏️', 'KITCHEN': '🍳', 'BATHROOM': '🛁',
+        'MY HOUSE': '🏠', 'DINING TABLE': '🍽️',
+      },
+      'Shopping & Toys': {
+        'TEDDY BEAR': '🧸', 'TOY CAR': '🚗', 'SHOPPING BAG': '🛍️', 'BIG BALL': '⚽',
+        'NEW DOLL': '🪆', 'BUY A TOY': '🛒',
+      },
     },
   };
 
@@ -98,7 +135,7 @@ class ExerciseService {
 
       return ExerciseResult(exercises: exercises, isOffline: false);
     } catch (_) {
-      return ExerciseResult(exercises: _offlineExercises(topic, count), isOffline: true);
+      return ExerciseResult(exercises: _offlineExercises(level, topic, count), isOffline: true);
     }
   }
 
@@ -109,8 +146,8 @@ class ExerciseService {
     );
   }
 
-  static List<PracticeExercise> _offlineExercises(String topic, int count) {
-    final words = (_offlineWords[topic] ?? {}).entries.toList()..shuffle(Random());
+  static List<PracticeExercise> _offlineExercises(String level, String topic, int count) {
+    final words = (_offlineWords[level]?[topic] ?? {}).entries.toList()..shuffle(Random());
     return words.take(count).map((entry) => _buildExercise(entry.key, entry.value)).toList();
   }
 }
