@@ -3,6 +3,7 @@ import 'package:talkiepal/main.dart';
 import 'package:talkiepal/game_page.dart';
 import 'package:talkiepal/profile_page.dart';
 import 'package:talkiepal/services/exercise_service.dart';
+import 'package:talkiepal/practice/widgets/success_dialog.dart';
 
 /// Special Sound practice for one target sound (R, S, TH, ...).
 /// Words mode shows one word; sentence mode (Mini Challenge) shows a sentence.
@@ -208,9 +209,19 @@ class _AiSoundPageState extends State<AiSoundPage> {
   }
 
   void _showResultDialog(int score) {
-    final bool isCorrect = score >= 100;
-    final bool isLast = currentIndex == exercises.length - 1;
-    final Color mainColor = isCorrect ? const Color(0xFF6BCB77) : const Color(0xFFFF6B6B);
+    if (score >= 100) {
+      final bool isLast = currentIndex == exercises.length - 1;
+
+      showSuccessDialog(
+        context,
+        detail: 'You scored $score%!',
+        nextLabel: isLast ? 'FINISH →' : 'NEXT →',
+        onNext: _goToNext,
+      );
+      return;
+    }
+
+    const Color mainColor = Color(0xFFFF6B6B);
 
     showDialog(
       context: context,
@@ -223,10 +234,8 @@ class _AiSoundPageState extends State<AiSoundPage> {
           child: Container(
             padding: const EdgeInsets.all(25),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: isCorrect
-                    ? const [Color(0xFFA8D5A2), Color(0xFF6BCB77)]
-                    : const [Color(0xFFFFB6B6), Color(0xFFFF6B6B)],
+              gradient: const LinearGradient(
+                colors: [Color(0xFFFFB6B6), mainColor],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
@@ -235,9 +244,9 @@ class _AiSoundPageState extends State<AiSoundPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  isCorrect ? '🎉 CORRECT! 🎉' : '❌ OOPS! ❌',
-                  style: const TextStyle(
+                const Text(
+                  '❌ OOPS! ❌',
+                  style: TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
@@ -253,37 +262,16 @@ class _AiSoundPageState extends State<AiSoundPage> {
                   ),
                 ),
                 const SizedBox(height: 10),
-                Text(
-                  isCorrect
-                      ? 'Great job! Keep it up! 🌟'
-                      : 'Almost there! Listen again and repeat!',
+                const Text(
+                  'Almost there! Listen again and repeat!',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 16, color: Colors.white),
+                  style: TextStyle(fontSize: 16, color: Colors.white),
                 ),
                 const SizedBox(height: 20),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildDialogButton(
-                        label: 'TRY AGAIN',
-                        color: mainColor,
-                        onTap: () => Navigator.pop(dialogContext),
-                      ),
-                    ),
-                    if (isCorrect) ...[
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: _buildDialogButton(
-                          label: isLast ? 'FINISH →' : 'NEXT →',
-                          color: mainColor,
-                          onTap: () {
-                            Navigator.pop(dialogContext);
-                            _goToNext();
-                          },
-                        ),
-                      ),
-                    ],
-                  ],
+                _buildDialogButton(
+                  label: 'TRY AGAIN',
+                  color: mainColor,
+                  onTap: () => Navigator.pop(dialogContext),
                 ),
               ],
             ),

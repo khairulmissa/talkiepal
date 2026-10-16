@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:talkiepal/main.dart';
 import 'package:talkiepal/game_page.dart';
 import 'package:talkiepal/profile_page.dart';
+import 'package:talkiepal/practice/widgets/success_dialog.dart';
 
 class PracticeAlphabetsPage extends StatefulWidget {
   const PracticeAlphabetsPage({super.key});
@@ -68,132 +69,11 @@ class _PracticeAlphabetsPageState extends State<PracticeAlphabetsPage> {
   void _showResultDialog(BuildContext context, {required bool isSuccess}) {
     bool isLastExercise = currentIndex == exercises.length - 1;
 
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(25),
-          ),
-          child: Container(
-            padding: const EdgeInsets.all(25),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFFA8D5A2), Color(0xFF8BC48A)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(25),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'PERFECT!',
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    letterSpacing: 2,
-                  ),
-                ),
-                const SizedBox(height: 15),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(
-                    4,
-                    (index) => const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 4),
-                      child: Icon(
-                        Icons.star,
-                        size: 35,
-                        color: Colors.amber,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                const Text(
-                  '🌟 You did great! 🌟',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 25),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () {
-                          Navigator.pop(context);
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          margin: const EdgeInsets.only(right: 8),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(30),
-                          ),
-                          child: const Center(
-                            child: Text(
-                              'TRY AGAIN',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF6BCB77),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () {
-                          Navigator.pop(context);
-                          if (isLastExercise) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('🎉 Congratulations! You completed all alphabets! 🎉'),
-                                backgroundColor: Color(0xFFA8D5A2),
-                                duration: Duration(seconds: 2),
-                              ),
-                            );
-                            Navigator.pop(context);
-                          } else {
-                            _goToNextExercise();
-                          }
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          margin: const EdgeInsets.only(left: 8),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(30),
-                          ),
-                          child: Center(
-                            child: Text(
-                              isLastExercise ? 'FINISH →' : 'NEXT LETTER →',
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF8B5E9E),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+    showSuccessDialog(
+      context,
+      detail: 'You said "${currentExercise['letter']}"!',
+      nextLabel: isLastExercise ? 'FINISH →' : 'NEXT LETTER →',
+      onNext: _goToNextExercise,
     );
   }
 
@@ -492,6 +372,7 @@ class _PracticeAlphabetsPageState extends State<PracticeAlphabetsPage> {
                                       ),
                                     );
                                     Future.delayed(const Duration(seconds: 2), () {
+                                      if (!context.mounted) return;
                                       setState(() {
                                         isListening = false;
                                       });

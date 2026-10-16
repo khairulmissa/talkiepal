@@ -3,6 +3,7 @@ import 'package:talkiepal/main.dart';
 import 'package:talkiepal/game_page.dart';
 import 'package:talkiepal/profile_page.dart';
 import 'package:talkiepal/services/exercise_service.dart';
+import 'package:talkiepal/practice/widgets/success_dialog.dart';
 
 /// One practice page for every topic. The words come from the AI backend
 /// instead of being written in the code.
@@ -167,118 +168,11 @@ class _AiPracticePageState extends State<AiPracticePage> {
   void _showResultDialog() {
     final bool isLastExercise = currentIndex == exercises.length - 1;
 
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext dialogContext) {
-        return Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(25),
-          ),
-          child: Container(
-            padding: const EdgeInsets.all(25),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFFA8D5A2), Color(0xFF8BC48A)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(25),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'PERFECT!',
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    letterSpacing: 2,
-                  ),
-                ),
-                const SizedBox(height: 15),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(
-                    4,
-                    (index) => const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 4),
-                      child: Icon(
-                        Icons.star,
-                        size: 35,
-                        color: Colors.amber,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                const Text(
-                  '🌟 You did great! 🌟',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 25),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    Expanded(
-                      child: _buildDialogButton(
-                        label: 'TRY AGAIN',
-                        color: const Color(0xFF6BCB77),
-                        margin: const EdgeInsets.only(right: 8),
-                        onTap: () => Navigator.pop(dialogContext),
-                      ),
-                    ),
-                    Expanded(
-                      child: _buildDialogButton(
-                        label: isLastExercise ? 'FINISH →' : 'NEXT →',
-                        color: const Color(0xFF8B5E9E),
-                        margin: const EdgeInsets.only(left: 8),
-                        onTap: () {
-                          Navigator.pop(dialogContext);
-                          _goToNextExercise();
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildDialogButton({
-    required String label,
-    required Color color,
-    required EdgeInsets margin,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        margin: margin,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(30),
-        ),
-        child: Center(
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
-          ),
-        ),
-      ),
+    showSuccessDialog(
+      context,
+      detail: 'You said "${currentExercise.word}"!',
+      nextLabel: isLastExercise ? 'FINISH →' : 'NEXT →',
+      onNext: _goToNextExercise,
     );
   }
 
