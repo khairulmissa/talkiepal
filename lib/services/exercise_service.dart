@@ -7,9 +7,8 @@ import 'package:talkiepal/config/api_config.dart';
 class PracticeExercise {
   final String word;
   final String emoji;
-  final String? image;
 
-  const PracticeExercise({required this.word, required this.emoji, this.image});
+  const PracticeExercise({required this.word, required this.emoji});
 }
 
 class ExerciseResult {
@@ -23,26 +22,36 @@ class ExerciseResult {
 
 /// Gets practice words from the AI backend, with offline words as backup.
 class ExerciseService {
-  // Words that already have a picture in lib/assets/images/<folder>/<word>.png.
-  // They are also used as backup when the AI is not available.
-  static const Map<String, String> _topicFolders = {
-    'Colors': 'colors',
-    'Shapes': 'shapes',
-    'Animals': 'animals',
-    'Fruits': 'fruits',
-    'Body Parts': 'bodyparts',
-    'Clothes': 'clothes',
-    'Vehicles': 'vehicles',
-  };
-
-  static const Map<String, List<String>> _topicImageWords = {
-    'Colors': ['black', 'blue', 'brown', 'green', 'orange', 'pink', 'purple', 'red', 'white', 'yellow'],
-    'Shapes': ['circle', 'diamond', 'heart', 'hexagon', 'oval', 'pentagon', 'rectangle', 'square', 'star', 'triangle'],
-    'Animals': ['bird', 'cat', 'cow', 'dog', 'elephant', 'fish', 'frog', 'lion', 'monkey', 'rabbit'],
-    'Fruits': ['apple', 'banana', 'cherry', 'grape', 'mango', 'orange', 'pear', 'pineapple', 'strawberry', 'watermelon'],
-    'Body Parts': ['arm', 'ear', 'eyes', 'finger', 'foot', 'hand', 'head', 'leg', 'mouth', 'nose'],
-    'Clothes': ['dress', 'gloves', 'hat', 'jacket', 'pants', 'scarf', 'shirt', 'shoes', 'skirt', 'socks'],
-    'Vehicles': ['airplane', 'bicycle', 'boat', 'bus', 'car', 'helicopter', 'motorcycle', 'train', 'truck'],
+  // Backup words with emoji, used when the AI is not available.
+  static const Map<String, Map<String, String>> _offlineWords = {
+    'Colors': {
+      'RED': '🔴', 'BLUE': '🔵', 'GREEN': '🟢', 'YELLOW': '🟡', 'ORANGE': '🟠',
+      'PURPLE': '🟣', 'BROWN': '🟤', 'BLACK': '⚫', 'WHITE': '⚪', 'PINK': '🩷',
+    },
+    'Shapes': {
+      'CIRCLE': '⭕', 'SQUARE': '🟦', 'TRIANGLE': '🔺', 'STAR': '⭐', 'HEART': '❤️',
+      'DIAMOND': '🔷', 'OVAL': '🥚',
+    },
+    'Animals': {
+      'CAT': '🐱', 'DOG': '🐶', 'COW': '🐮', 'BIRD': '🐦', 'FISH': '🐟',
+      'RABBIT': '🐰', 'FROG': '🐸', 'MONKEY': '🐵', 'LION': '🦁', 'ELEPHANT': '🐘',
+    },
+    'Fruits': {
+      'APPLE': '🍎', 'BANANA': '🍌', 'CHERRY': '🍒', 'GRAPE': '🍇', 'MANGO': '🥭',
+      'ORANGE': '🍊', 'PEAR': '🍐', 'PINEAPPLE': '🍍', 'STRAWBERRY': '🍓', 'WATERMELON': '🍉',
+    },
+    'Body Parts': {
+      'ARM': '💪', 'EAR': '👂', 'EYES': '👀', 'FINGER': '☝️', 'FOOT': '🦶',
+      'HAND': '✋', 'HEAD': '🙂', 'LEG': '🦵', 'MOUTH': '👄', 'NOSE': '👃',
+    },
+    'Clothes': {
+      'DRESS': '👗', 'GLOVES': '🧤', 'HAT': '👒', 'JACKET': '🧥', 'PANTS': '👖',
+      'SCARF': '🧣', 'SHIRT': '👕', 'SHOES': '👟', 'SOCKS': '🧦', 'CAP': '🧢',
+    },
+    'Vehicles': {
+      'AIRPLANE': '✈️', 'BICYCLE': '🚲', 'BOAT': '⛵', 'BUS': '🚌', 'CAR': '🚗',
+      'HELICOPTER': '🚁', 'MOTORCYCLE': '🏍️', 'TRAIN': '🚆', 'TRUCK': '🚚',
+    },
   };
 
   // Words shown in recent sessions, sent to the AI so it picks new ones.
@@ -80,7 +89,7 @@ class ExerciseService {
 
       final data = jsonDecode(utf8.decode(response.bodyBytes));
       final exercises = (data['exercises'] as List)
-          .map((item) => _buildExercise(topic, item['word'] as String, item['emoji'] as String))
+          .map((item) => _buildExercise(item['word'] as String, item['emoji'] as String))
           .toList();
 
       if (exercises.isEmpty) {
@@ -97,20 +106,15 @@ class ExerciseService {
     }
   }
 
-  static PracticeExercise _buildExercise(String topic, String word, String emoji) {
-    final folder = _topicFolders[topic];
-    final lower = word.toLowerCase();
-    final hasImage = folder != null && (_topicImageWords[topic]?.contains(lower) ?? false);
-
+  static PracticeExercise _buildExercise(String word, String emoji) {
     return PracticeExercise(
       word: word.toUpperCase(),
       emoji: emoji.isEmpty ? '⭐' : emoji,
-      image: hasImage ? 'lib/assets/images/$folder/$lower.png' : null,
     );
   }
 
   static List<PracticeExercise> _offlineExercises(String topic, int count) {
-    final words = [...?_topicImageWords[topic]]..shuffle(Random());
-    return words.take(count).map((word) => _buildExercise(topic, word, '⭐')).toList();
+    final words = (_offlineWords[topic] ?? {}).entries.toList()..shuffle(Random());
+    return words.take(count).map((entry) => _buildExercise(entry.key, entry.value)).toList();
   }
 }
