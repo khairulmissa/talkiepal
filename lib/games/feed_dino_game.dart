@@ -360,8 +360,8 @@ class _FeedDinoGameState extends State<FeedDinoGame> {
         child: Transform.rotate(angle: -0.15, child: _buildFoodCard(food.emoji, isLifted: true)),
       ),
       childWhenDragging: Opacity(opacity: 0.3, child: card),
-      // Tapping works too, for children who find dragging hard.
-      child: GestureDetector(onTap: () => _onFeed(i), child: card),
+      // Only dropping the food on Dino counts; a tap does nothing.
+      child: card,
     );
   }
 
