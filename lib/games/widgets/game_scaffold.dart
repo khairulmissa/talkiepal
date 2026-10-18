@@ -18,6 +18,8 @@ class GameLook {
       Color(0xFF43A047), Color(0xFF2E7D32), Color(0xFFE8F5E9), Color(0xFFA5D6A7), Color(0xFF8BD17C));
   static const minimalPairs = GameLook(
       Color(0xFFD81B60), Color(0xFFAD1457), Color(0xFFFFE0E6), Color(0xFFF48FB1), Color(0xFFE77BC3));
+  static const feedDino = GameLook(
+      Color(0xFFF57C00), Color(0xFFE65100), Color(0xFFFFF3D6), Color(0xFFFFCC80), Color(0xFFFFA569));
 }
 
 /// Full-screen layout for every game: header with stars, progress and
@@ -28,7 +30,9 @@ class GameScaffold extends StatelessWidget {
   final int stars;
   final int current;
   final int total;
-  final String dinoTip;
+
+  // Null hides the dino tip, e.g. when the game shows its own big dino.
+  final String? dinoTip;
   final bool isLoading;
   final String loadingText;
   final List<Widget> children;
@@ -69,8 +73,10 @@ class GameScaffold extends StatelessWidget {
                     _buildProgress(),
                     const SizedBox(height: 14),
                   ],
-                  _buildDinoTip(),
-                  const SizedBox(height: 16),
+                  if (dinoTip != null) ...[
+                    _buildDinoTip(dinoTip!),
+                    const SizedBox(height: 16),
+                  ],
                   if (isLoading) _buildLoadingCard() else ...children,
                 ],
               ),
@@ -154,7 +160,7 @@ class GameScaffold extends StatelessWidget {
     );
   }
 
-  Widget _buildDinoTip() {
+  Widget _buildDinoTip(String tip) {
     return Row(
       children: [
         Container(
@@ -178,7 +184,7 @@ class GameScaffold extends StatelessWidget {
               boxShadow: const [BoxShadow(color: Color(0xFFE6DCEB), offset: Offset(0, 4))],
             ),
             child: Text(
-              dinoTip,
+              tip,
               style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: PracticeColors.ink),
             ),
           ),

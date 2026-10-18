@@ -13,10 +13,10 @@ class GameWords {
   // Beginner topics with words that are easy to show as a picture.
   static const List<String> topics = ['Animals', 'Fruits', 'Vehicles', 'Body Parts', 'Clothes'];
 
-  /// Gets Beginner words from the AI for a random topic.
+  /// Gets Beginner words from the AI for a random topic in [from].
   /// Repeated words or pictures are dropped, so every choice looks different.
-  static Future<GameWords> load({required int count, Random? random}) async {
-    final topic = topics[(random ?? Random()).nextInt(topics.length)];
+  static Future<GameWords> load({required int count, Random? random, List<String> from = topics}) async {
+    final topic = from[(random ?? Random()).nextInt(from.length)];
     final result = await ExerciseService.getExercises(level: 'beginner', topic: topic, count: count);
 
     final seenWords = <String>{};
