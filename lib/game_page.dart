@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:talkiepal/games/sound_matcher_game.dart';
+import 'package:talkiepal/games/yes_no_game.dart';
 import 'package:talkiepal/profile_page.dart';
 import 'package:talkiepal/widgets/dino_mascot.dart';
 import 'package:talkiepal/widgets/kids_bottom_nav.dart';
@@ -29,6 +30,7 @@ class _Game {
 }
 
 Widget _soundMatcherPage(BuildContext context) => const SoundMatcherGame();
+Widget _yesNoPage(BuildContext context) => const YesNoGame();
 
 class _GamePageState extends State<GamePage> {
   static const Color _cream = Color(0xFFFFF8EC);
@@ -42,7 +44,7 @@ class _GamePageState extends State<GamePage> {
     _Game('👂', 'Minimal Pairs', 'Cat or Rat?', '👂 Listen',
         Color(0xFFFFE0E6), Color(0xFFF48FB1), Color(0xFFD81B60)),
     _Game('👍', 'Yes or No?', 'Is it a cat?', '🧠 Think',
-        Color(0xFFE8F5E9), Color(0xFFA5D6A7), Color(0xFF43A047)),
+        Color(0xFFE8F5E9), Color(0xFFA5D6A7), Color(0xFF43A047), page: _yesNoPage),
     _Game('🦕', 'Feed the Dino', 'Dino is hungry!', '🍎 Words',
         Color(0xFFFFF3D6), Color(0xFFFFCC80), Color(0xFFF57C00)),
     _Game('🚀', 'Voice Rocket', 'Use your voice!', '🗣️ Voice',
