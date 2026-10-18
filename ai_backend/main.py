@@ -702,3 +702,147 @@ def generate_questions(request: QuestionRequest):
     print(f"[generate-questions] {topic}: {len(questions)} questions in {time.time() - started:.1f}s")
 
     return QuestionResponse(topic=topic, questions=questions)
+
+
+# ---------------------------------------------------------------
+# AI-GENERATED MINIMAL PAIRS (GAME)
+# ---------------------------------------------------------------
+
+PAIR_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "pairs": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "word_a": {"type": "string"},
+                    "emoji_a": {"type": "string"},
+                    "word_b": {"type": "string"},
+                    "emoji_b": {"type": "string"},
+                },
+                "required": ["word_a", "emoji_a", "word_b", "emoji_b"],
+            },
+        }
+    },
+    "required": ["pairs"],
+}
+
+
+class PairRequest(BaseModel):
+    count: int = Field(default=10, ge=1, le=10)
+    exclude: list[str] = Field(default_factory=list, max_length=50)
+
+
+class PairWord(BaseModel):
+    word: str
+    emoji: str
+
+
+class MinimalPair(BaseModel):
+    a: PairWord
+    b: PairWord
+
+
+class PairResponse(BaseModel):
+    pairs: list[MinimalPair]
+
+
+def build_pair_prompt(count: int, exclude: list[str]) -> str:
+    avoid = ", ".join(w.upper() for w in exclude) or "none"
+    example = {"pairs": [{"word_a": "CAT", "emoji_a": "🐱", "word_b": "RAT", "emoji_b": "🐭"}]}
+
+    return f"""
+Create {count} different minimal pairs for children aged 4 to 7 who are learning to hear and say sounds.
+
+A minimal pair is two short words that sound almost the same and differ by only ONE sound,
+for example CAT and RAT, FAN and VAN, BEAR and PEAR, MOUSE and HOUSE, SOCK and ROCK.
+
+RULES:
+1. Both words are real, easy, everyday English nouns a child can picture.
+2. Both words change only ONE sound, at the start, middle or end.
+3. "emoji_a" and "emoji_b" are ONE emoji each that clearly shows the word. They must be different.
+4. Words are in UPPERCASE letters only, 2 to 7 letters, one word each.
+5. No duplicates. Do not use these words: {avoid}.
+
+Reply with JSON only, for example:
+{json.dumps(example, ensure_ascii=False)}
+"""
+
+
+def is_minimal_pair(a: str, b: str) -> bool:
+    """True when the words share most letters and differ in one small part (CAT/RAT, SHIP/SHEEP)."""
+    if a == b or abs(len(a) - len(b)) > 1:
+        return False
+
+    prefix = 0
+    while prefix < min(len(a), len(b)) and a[prefix] == b[prefix]:
+        prefix += 1
+
+    suffix = 0
+    while (suffix < min(len(a), len(b)) - prefix
+           and a[len(a) - 1 - suffix] == b[len(b) - 1 - suffix]):
+        suffix += 1
+
+    diff_a = len(a) - prefix - suffix
+    diff_b = len(b) - prefix - suffix
+    return prefix + suffix >= 2 and 1 <= max(diff_a, diff_b) <= 2
+
+
+def clean_pairs(raw_items, count: int, exclude: list[str]) -> list[MinimalPair]:
+    """Keep only real-looking minimal pairs with two different pictures."""
+    seen = {w.strip().upper() for w in exclude}
+    cleaned = []
+
+    for item in raw_items:
+        if not isinstance(item, dict):
+            continue
+
+        a = str(item.get("word_a", "")).strip().upper()
+        b = str(item.get("word_b", "")).strip().upper()
+        emoji_a = str(item.get("emoji_a", "")).strip()[:8]
+        emoji_b = str(item.get("emoji_b", "")).strip()[:8]
+
+        if not all(w.isalpha() and w.isascii() and 2 <= len(w) <= 7 for w in (a, b)):
+            continue
+        if a in seen or b in seen:
+            continue
+        if not emoji_a or not emoji_b or emoji_a == emoji_b:
+            continue
+        if not is_minimal_pair(a, b):
+            continue
+
+        seen.update((a, b))
+        cleaned.append(MinimalPair(a=PairWord(word=a, emoji=emoji_a), b=PairWord(word=b, emoji=emoji_b)))
+
+        if len(cleaned) == count:
+            break
+
+    return cleaned
+
+
+@app.post("/generate-minimal-pairs", response_model=PairResponse)
+def generate_minimal_pairs(request: PairRequest):
+
+    started = time.time()
+
+    data = ask_llama_json(
+        build_pair_prompt(request.count, request.exclude),
+        PAIR_SCHEMA,
+        num_predict=900
+    )
+
+    try:
+        pairs = clean_pairs(data["pairs"], request.count, request.exclude)
+    except (KeyError, TypeError):
+        pairs = []
+
+    if not pairs:
+        raise HTTPException(
+            status_code=502,
+            detail="Invalid response from Llama."
+        )
+
+    print(f"[generate-minimal-pairs] {len(pairs)} pairs in {time.time() - started:.1f}s")
+
+    return PairResponse(pairs=pairs)

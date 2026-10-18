@@ -16,6 +16,8 @@ class GameLook {
       Color(0xFF1E88E5), Color(0xFF1565C0), Color(0xFFE3F2FD), Color(0xFF90CAF9), Color(0xFF7EC3F2));
   static const yesOrNo = GameLook(
       Color(0xFF43A047), Color(0xFF2E7D32), Color(0xFFE8F5E9), Color(0xFFA5D6A7), Color(0xFF8BD17C));
+  static const minimalPairs = GameLook(
+      Color(0xFFD81B60), Color(0xFFAD1457), Color(0xFFFFE0E6), Color(0xFFF48FB1), Color(0xFFE77BC3));
 }
 
 /// Full-screen layout for every game: header with stars, progress and
