@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:talkiepal/games/balloon/pop_balloon_game.dart';
 import 'package:talkiepal/games/feed_dino_game.dart';
 import 'package:talkiepal/games/minimal_pairs_game.dart';
 import 'package:talkiepal/games/sound_matcher_game.dart';
@@ -35,6 +36,7 @@ Widget _soundMatcherPage(BuildContext context) => const SoundMatcherGame();
 Widget _yesNoPage(BuildContext context) => const YesNoGame();
 Widget _minimalPairsPage(BuildContext context) => const MinimalPairsGame();
 Widget _feedDinoPage(BuildContext context) => const FeedDinoGame();
+Widget _popBalloonPage(BuildContext context) => const PopBalloonGame();
 
 class _GamePageState extends State<GamePage> {
   static const Color _cream = Color(0xFFFFF8EC);
@@ -54,7 +56,7 @@ class _GamePageState extends State<GamePage> {
     _Game('🚀', 'Voice Rocket', 'Use your voice!', '🗣️ Voice',
         Color(0xFFF3E5F5), Color(0xFFCE93D8), Color(0xFF8E24AA)),
     _Game('🎈', 'Pop the Balloon', 'Pop the S sounds!', '🔤 Sounds',
-        Color(0xFFE0F7FA), Color(0xFF80DEEA), Color(0xFF00897B)),
+        Color(0xFFE0F7FA), Color(0xFF80DEEA), Color(0xFF00897B), page: _popBalloonPage),
   ];
 
   @override
