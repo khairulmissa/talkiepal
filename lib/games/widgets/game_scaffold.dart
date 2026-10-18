@@ -14,6 +14,8 @@ class GameLook {
 
   static const soundMatcher = GameLook(
       Color(0xFF1E88E5), Color(0xFF1565C0), Color(0xFFE3F2FD), Color(0xFF90CAF9), Color(0xFF7EC3F2));
+  static const yesOrNo = GameLook(
+      Color(0xFF43A047), Color(0xFF2E7D32), Color(0xFFE8F5E9), Color(0xFFA5D6A7), Color(0xFF8BD17C));
 }
 
 /// Full-screen layout for every game: header with stars, progress and

@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:talkiepal/games/game_words.dart';
 import 'package:talkiepal/games/widgets/game_scaffold.dart';
 import 'package:talkiepal/practice/widgets/practice_scaffold.dart';
 import 'package:talkiepal/practice/widgets/success_dialog.dart';
@@ -28,9 +29,6 @@ class SoundMatcherGame extends StatefulWidget {
 class _SoundMatcherGameState extends State<SoundMatcherGame> {
   static const GameLook _look = GameLook.soundMatcher;
 
-  // Beginner topics with words that are easy to show as a picture.
-  static const List<String> _topics = ['Animals', 'Fruits', 'Vehicles', 'Body Parts', 'Clothes'];
-
   static const Color _green = Color(0xFF43A047);
   static const Color _greenDark = Color(0xFF2E7D32);
   static const Color _red = Color(0xFFFF6B6B);
@@ -39,7 +37,6 @@ class _SoundMatcherGameState extends State<SoundMatcherGame> {
 
   bool isLoading = true;
   bool isPlaying = false;
-  String topic = '';
   List<_Round> rounds = [];
   int currentIndex = 0;
   int stars = 0;
@@ -62,22 +59,17 @@ class _SoundMatcherGameState extends State<SoundMatcherGame> {
   Future<void> _loadGame() async {
     setState(() {
       isLoading = true;
-      topic = _topics[_random.nextInt(_topics.length)];
       currentIndex = 0;
       stars = 0;
       _resetRound();
     });
 
-    final result = await ExerciseService.getExercises(
-      level: 'beginner',
-      topic: topic,
-      count: widget.rounds,
-    );
+    final result = await GameWords.load(count: widget.rounds, random: _random);
 
     if (!mounted) return;
 
     setState(() {
-      rounds = _buildRounds(result.exercises);
+      rounds = _buildRounds(result.words);
       isLoading = false;
     });
 
@@ -93,12 +85,7 @@ class _SoundMatcherGameState extends State<SoundMatcherGame> {
   }
 
   /// Every word becomes one round, with three other words as wrong pictures.
-  List<_Round> _buildRounds(List<PracticeExercise> exercises) {
-    // Drop repeated words or pictures, so every choice looks different.
-    final seenWords = <String>{};
-    final seenEmojis = <String>{};
-    final words = exercises.where((e) => seenWords.add(e.word) && seenEmojis.add(e.emoji)).toList();
-
+  List<_Round> _buildRounds(List<PracticeExercise> words) {
     if (words.length < 4) return [];
 
     return words.map((target) {
