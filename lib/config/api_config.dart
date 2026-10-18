@@ -13,4 +13,6 @@ class ApiConfig {
   static const String generateExercisesUrl = '$baseUrl/generate-exercises';
 
   static const String generateQuestionsUrl = '$baseUrl/generate-questions';
+
+  static const String generateMinimalPairsUrl = '$baseUrl/generate-minimal-pairs';
 }
