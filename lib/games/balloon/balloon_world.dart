@@ -44,6 +44,10 @@ class BalloonGame extends FlameGame {
   int _lastLane = -1;
   int _colorIndex = 0;
 
+  // How many balloons in a row were (or were not) answers.
+  int _targetStreak = 0;
+  int _otherStreak = 0;
+
   // Keeps the same word from coming up again and again.
   final List<String> _recent = [];
 
@@ -74,7 +78,11 @@ class BalloonGame extends FlameGame {
   }
 
   void _spawnBalloon() {
-    final isTarget = _random.nextBool();
+    // Random, but never more than 2 of the same kind in a row, so the child
+    // never waits long for a balloon to pop.
+    final isTarget = _otherStreak >= 2 || (_targetStreak < 2 && _random.nextBool());
+    _targetStreak = isTarget ? _targetStreak + 1 : 0;
+    _otherStreak = isTarget ? 0 : _otherStreak + 1;
     final word = _pickWord(isTarget ? targetWords : otherWords);
 
     // Three lanes, never the same lane twice in a row, so balloons do not overlap.

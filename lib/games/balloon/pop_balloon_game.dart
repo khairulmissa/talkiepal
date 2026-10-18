@@ -11,26 +11,36 @@ import 'package:talkiepal/practice/widgets/success_dialog.dart';
 import 'package:talkiepal/services/exercise_service.dart';
 import 'package:talkiepal/widgets/dino_mascot.dart';
 
+/// Words for one level: balloons with the sound and balloons without it.
+class _LevelWords {
+  final List<String> targets;
+  final List<String> others;
+  final bool isOffline;
+
+  const _LevelWords(this.targets, this.others, this.isOffline);
+}
+
 /// Pop the Balloon (Flame): balloons with words float up and the child pops
-/// every word with the target sound before time runs out.
+/// every word with the target sound before time runs out. There is one level
+/// per sound (S, R, L, SH, CH).
 /// The words come from the AI backend (Special Sound words + Beginner words).
 class PopBalloonGame extends StatefulWidget {
   final int goal;
   final int seconds;
 
-  const PopBalloonGame({super.key, this.goal = 5, this.seconds = 45});
+  const PopBalloonGame({super.key, this.goal = 10, this.seconds = 60});
 
   @override
   State<PopBalloonGame> createState() => _PopBalloonGameState();
 }
 
-enum _Phase { loading, ready, playing, won, timeUp }
+enum _Phase { loading, ready, playing, levelDone, won, timeUp }
 
 class _PopBalloonGameState extends State<PopBalloonGame> {
   static const GameLook _look = GameLook.popBalloon;
 
-  // Sounds that are easy to spot in written words.
-  static const List<String> _sounds = ['S', 'R', 'L', 'SH', 'CH'];
+  // Sounds that are easy to spot in written words. One level each.
+  static const List<String> _allSounds = ['S', 'R', 'L', 'SH', 'CH'];
 
   // Backup words without the target sound, if the AI gives too few.
   static const List<String> _backupWords = [
@@ -40,19 +50,29 @@ class _PopBalloonGameState extends State<PopBalloonGame> {
   final Random _random = Random();
 
   _Phase phase = _Phase.loading;
-  String sound = '';
+  List<String> sounds = [];
+  int level = 0;
   BalloonGame? game;
+  bool hasNoWords = false;
 
   int popped = 0;
+  int totalPopped = 0;
   int secondsLeft = 0;
   String? message;
   bool messageIsWrong = false;
   Timer? _timer;
 
+  // Words for each level, loaded one level ahead while the child plays.
+  final Map<int, Future<_LevelWords>> _levelWords = {};
+  Future<GameWords>? _otherWords;
+
+  String get sound => sounds.isEmpty ? '' : sounds[level];
+  bool get isLastLevel => level == sounds.length - 1;
+
   @override
   void initState() {
     super.initState();
-    _loadGame();
+    _newGame();
   }
 
   @override
@@ -61,43 +81,70 @@ class _PopBalloonGameState extends State<PopBalloonGame> {
     super.dispose();
   }
 
-  Future<void> _loadGame() async {
+  /// Starts again from level 1 with the sounds in a new order.
+  void _newGame() {
+    _timer?.cancel();
+    _levelWords.clear();
+    _otherWords = GameWords.load(count: 10, random: _random);
+    sounds = [..._allSounds]..shuffle(_random);
+    totalPopped = 0;
+    _openLevel(0);
+  }
+
+  Future<_LevelWords> _wordsFor(int i) {
+    return _levelWords.putIfAbsent(i, () async {
+      final sound = sounds[i];
+      final results = await Future.wait([
+        ExerciseService.getExercises(level: 'special_words', topic: sound, count: 10),
+        _otherWords!,
+      ]);
+      final soundResult = results[0] as ExerciseResult;
+      final otherResult = results[1] as GameWords;
+
+      bool isShort(String w) => !w.contains(' ') && w.length <= 8;
+
+      return _LevelWords(
+        soundResult.exercises.map((e) => e.word).where((w) => isShort(w) && w.contains(sound)).toSet().toList(),
+        {...otherResult.words.map((e) => e.word), ..._backupWords}
+            .where((w) => isShort(w) && !w.contains(sound))
+            .toList(),
+        soundResult.isOffline || otherResult.isOffline,
+      );
+    });
+  }
+
+  Future<void> _openLevel(int i) async {
     _timer?.cancel();
     setState(() {
+      level = i;
+      popped = 0;
       phase = _Phase.loading;
-      sound = _sounds[_random.nextInt(_sounds.length)];
+      game = null;
+      hasNoWords = false;
+      message = null;
     });
 
-    final results = await Future.wait([
-      ExerciseService.getExercises(level: 'special_words', topic: sound, count: 10),
-      GameWords.load(count: 10, random: _random),
-    ]);
+    final words = await _wordsFor(i);
+    if (!mounted || level != i) return;
 
-    if (!mounted) return;
-
-    final soundResult = results[0] as ExerciseResult;
-    final otherResult = results[1] as GameWords;
-
-    final targets = soundResult.exercises.map((e) => e.word).where(_isGoodTarget).toSet().toList();
-    final others = {
-      ...otherResult.words.map((e) => e.word),
-      ..._backupWords,
-    }.where((w) => !w.contains(' ') && !w.contains(sound) && w.length <= 8).toList();
+    // Get the next level's words ready while this one is played.
+    if (i + 1 < sounds.length) _wordsFor(i + 1);
 
     setState(() {
-      game = targets.isEmpty
+      hasNoWords = words.targets.isEmpty;
+      game = hasNoWords
           ? null
           : BalloonGame(
               sound: sound,
-              targetWords: targets,
-              otherWords: others,
+              targetWords: words.targets,
+              otherWords: words.others,
               onCorrect: _onCorrect,
               onWrong: _onWrong,
             );
       phase = _Phase.ready;
     });
 
-    if (soundResult.isOffline || otherResult.isOffline) {
+    if (words.isOffline) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('📴 AI is offline. Using practice words instead.'),
@@ -108,12 +155,17 @@ class _PopBalloonGameState extends State<PopBalloonGame> {
     }
   }
 
-  /// One short word that really has the sound.
-  bool _isGoodTarget(String word) => !word.contains(' ') && word.contains(sound) && word.length <= 8;
+  void _retryLevel() {
+    // Load this level's words again, e.g. after the AI was not reachable.
+    _levelWords.remove(level);
+    _openLevel(level);
+  }
 
   void _start() {
     _timer?.cancel();
     setState(() {
+      // Playing a level again does not count its earlier pops twice.
+      totalPopped -= popped;
       popped = 0;
       secondsLeft = widget.seconds;
       message = null;
@@ -134,10 +186,11 @@ class _PopBalloonGameState extends State<PopBalloonGame> {
     if (phase != _Phase.playing) return;
     setState(() {
       popped++;
+      totalPopped++;
       message = '🎉 Yes! $word has the $sound sound!';
       messageIsWrong = false;
     });
-    if (popped >= widget.goal) _onWin();
+    if (popped >= widget.goal) _onLevelDone();
   }
 
   void _onWrong(String word) {
@@ -148,27 +201,33 @@ class _PopBalloonGameState extends State<PopBalloonGame> {
     });
   }
 
-  void _onWin() {
+  void _onLevelDone() {
     _timer?.cancel();
     game?.stop();
-    final usedSeconds = widget.seconds - secondsLeft;
-    var isLeaving = false;
 
+    if (!isLastLevel) {
+      setState(() {
+        phase = _Phase.levelDone;
+      });
+      return;
+    }
+
+    var isLeaving = false;
     setState(() {
       phase = _Phase.won;
     });
 
     showSuccessDialog(
       context,
-      detail: 'You popped ${widget.goal} $sound balloons in $usedSeconds seconds!',
+      detail: 'You finished all ${sounds.length} sounds and popped $totalPopped balloons!',
       nextLabel: 'FINISH →',
       onNext: () {
         isLeaving = true;
         Navigator.pop(context);
       },
     ).then((_) {
-      // TRY AGAIN in the popup plays another round.
-      if (mounted && !isLeaving) _start();
+      // TRY AGAIN in the popup starts a new game from level 1.
+      if (mounted && !isLeaving) _newGame();
     });
   }
 
@@ -197,9 +256,9 @@ class _PopBalloonGameState extends State<PopBalloonGame> {
             padding: const EdgeInsets.fromLTRB(20, 10, 20, 16),
             child: Column(
               children: [
-                GameHeader(look: _look, title: 'Pop the Balloon 🎈', stars: popped),
+                GameHeader(look: _look, title: 'Pop the Balloon 🎈', stars: totalPopped),
                 const SizedBox(height: 12),
-                if (phase != _Phase.loading) _buildInstruction(),
+                if (sounds.isNotEmpty) _buildInstruction(),
                 const SizedBox(height: 8),
                 Expanded(child: _buildSky()),
                 const SizedBox(height: 8),
@@ -225,7 +284,8 @@ class _PopBalloonGameState extends State<PopBalloonGame> {
             ),
             child: Text.rich(
               TextSpan(children: [
-                const TextSpan(text: 'Pop the words with '),
+                TextSpan(text: 'Level ${level + 1}/${sounds.length}  ', style: TextStyle(color: _look.color)),
+                const TextSpan(text: 'Pop words with '),
                 TextSpan(text: sound, style: const TextStyle(color: Color(0xFFD81B8C), fontSize: 22)),
                 const TextSpan(text: ' !'),
               ]),
@@ -265,9 +325,10 @@ class _PopBalloonGameState extends State<PopBalloonGame> {
             bottom: 0,
             child: Text('🌳🌳🌳🌳🌳', textAlign: TextAlign.center, style: TextStyle(fontSize: 46)),
           ),
-          if (game != null) Positioned.fill(child: GameWidget(game: game!)),
+          if (game != null) Positioned.fill(child: GameWidget(key: ValueKey(game), game: game!)),
           if (phase == _Phase.loading) _buildLoading(),
           if (phase == _Phase.ready) _buildStartCard(),
+          if (phase == _Phase.levelDone) _buildLevelDoneCard(),
           if (phase == _Phase.timeUp) _buildTimeUpCard(),
           if (phase == _Phase.playing && message != null)
             Positioned(
@@ -317,7 +378,7 @@ class _PopBalloonGameState extends State<PopBalloonGame> {
   }
 
   Widget _buildStartCard() {
-    if (game == null) {
+    if (hasNoWords) {
       return Center(
         child: _buildCard(children: [
           const Text(
@@ -326,7 +387,7 @@ class _PopBalloonGameState extends State<PopBalloonGame> {
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: PracticeColors.ink),
           ),
           const SizedBox(height: 16),
-          _buildButton('🔄', 'TRY AGAIN', _loadGame),
+          _buildButton('🔄', 'TRY AGAIN', _retryLevel),
         ]),
       );
     }
@@ -334,7 +395,12 @@ class _PopBalloonGameState extends State<PopBalloonGame> {
     return Center(
       child: _buildCard(children: [
         DinoMascot(color: _look.dinoColor, size: 90),
-        const SizedBox(height: 8),
+        const SizedBox(height: 4),
+        Text(
+          'LEVEL ${level + 1} OF ${sounds.length}',
+          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: _look.color, letterSpacing: 1),
+        ),
+        const SizedBox(height: 6),
         Text.rich(
           TextSpan(children: [
             const TextSpan(text: 'Pop '),
@@ -374,8 +440,36 @@ class _PopBalloonGameState extends State<PopBalloonGame> {
         ),
         const SizedBox(height: 16),
         _buildButton('🔄', 'PLAY AGAIN', _start),
-        const SizedBox(height: 12),
-        _buildButton('🎶', 'NEW SOUND', _loadGame, color: const Color(0xFF7E57C2), darkColor: const Color(0xFF5E35B1)),
+      ]),
+    );
+  }
+
+  Widget _buildLevelDoneCard() {
+    final next = sounds[level + 1];
+
+    return Center(
+      child: _buildCard(children: [
+        const Text('🎉', style: TextStyle(fontSize: 56)),
+        Text(
+          'Sound $sound done!',
+          style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: Color(0xFF2E7D32)),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'You popped ${widget.goal} $sound balloons in ${widget.seconds - secondsLeft} seconds!',
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: PracticeColors.ink),
+        ),
+        const SizedBox(height: 10),
+        Text.rich(
+          TextSpan(children: [
+            const TextSpan(text: 'Next sound: '),
+            TextSpan(text: next, style: const TextStyle(color: Color(0xFFD81B8C), fontSize: 24)),
+          ]),
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: PracticeColors.ink),
+        ),
+        const SizedBox(height: 16),
+        _buildButton('➡️', 'NEXT LEVEL', () => _openLevel(level + 1)),
       ]),
     );
   }
