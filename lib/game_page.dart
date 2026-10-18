@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:talkiepal/games/sound_matcher_game.dart';
 import 'package:talkiepal/profile_page.dart';
 import 'package:talkiepal/widgets/dino_mascot.dart';
 import 'package:talkiepal/widgets/kids_bottom_nav.dart';
@@ -20,8 +21,14 @@ class _Game {
   final Color edge;
   final Color skillColor;
 
-  const _Game(this.emoji, this.title, this.subtitle, this.skill, this.background, this.edge, this.skillColor);
+  // Opens the game; null means it is not ready yet.
+  final WidgetBuilder? page;
+
+  const _Game(this.emoji, this.title, this.subtitle, this.skill, this.background, this.edge, this.skillColor,
+      {this.page});
 }
+
+Widget _soundMatcherPage(BuildContext context) => const SoundMatcherGame();
 
 class _GamePageState extends State<GamePage> {
   static const Color _cream = Color(0xFFFFF8EC);
@@ -31,7 +38,7 @@ class _GamePageState extends State<GamePage> {
 
   static const List<_Game> _games = [
     _Game('🔊', 'Sound Matcher', 'Hear it, find it!', '👂 Listen',
-        Color(0xFFE3F2FD), Color(0xFF90CAF9), Color(0xFF1E88E5)),
+        Color(0xFFE3F2FD), Color(0xFF90CAF9), Color(0xFF1E88E5), page: _soundMatcherPage),
     _Game('👂', 'Minimal Pairs', 'Cat or Rat?', '👂 Listen',
         Color(0xFFFFE0E6), Color(0xFFF48FB1), Color(0xFFD81B60)),
     _Game('👍', 'Yes or No?', 'Is it a cat?', '🧠 Think',
@@ -169,7 +176,7 @@ class _GamePageState extends State<GamePage> {
 
   Widget _buildGameTile(_Game game) {
     return GestureDetector(
-      onTap: () => _showComingSoon(game.title),
+      onTap: () => _openGame(game),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
         decoration: BoxDecoration(
@@ -243,6 +250,15 @@ class _GamePageState extends State<GamePage> {
         );
         break;
     }
+  }
+
+  void _openGame(_Game game) {
+    final page = game.page;
+    if (page == null) {
+      _showComingSoon(game.title);
+      return;
+    }
+    Navigator.push(context, MaterialPageRoute(builder: page));
   }
 
   void _showComingSoon(String gameName) {
