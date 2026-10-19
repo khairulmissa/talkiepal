@@ -15,8 +15,7 @@ class PracticeAlphabetsPage extends StatefulWidget {
   State<PracticeAlphabetsPage> createState() => _PracticeAlphabetsPageState();
 }
 
-class _PracticeAlphabetsPageState extends State<PracticeAlphabetsPage> {
-  bool isListening = false;
+class _PracticeAlphabetsPageState extends State<PracticeAlphabetsPage> with HoldToSpeak {
   bool isPlaying = false;
   int currentIndex = 0;
 
@@ -88,7 +87,7 @@ class _PracticeAlphabetsPageState extends State<PracticeAlphabetsPage> {
     if (currentIndex + 1 < exercises.length) {
       setState(() {
         currentIndex++;
-        isListening = false;
+        cancelSpeaking();
         isPlaying = false;
       });
     } else {
@@ -138,19 +137,14 @@ class _PracticeAlphabetsPageState extends State<PracticeAlphabetsPage> {
     super.dispose();
   }
 
-  Future<void> _onSpeak() async {
-    if (isPlaying || isListening) return;
-    setState(() {
-      isListening = true;
-    });
+  @override
+  String get speakTarget => currentExercise['letter']!;
 
-    final check = await listenAndScore(context, currentExercise['letter']!);
-    if (!mounted) return;
-    setState(() {
-      isListening = false;
-    });
-    if (check != null) _showResultDialog(check);
-  }
+  @override
+  bool get speakBlocked => isPlaying;
+
+  @override
+  void onSpeechChecked(SpeechCheck check) => _showResultDialog(check);
 
   @override
   Widget build(BuildContext context) {
@@ -159,7 +153,7 @@ class _PracticeAlphabetsPageState extends State<PracticeAlphabetsPage> {
       title: 'Alphabets 🔤',
       current: currentIndex + 1,
       total: exercises.length,
-      dinoTip: 'Look at the picture, listen, then say the letter!',
+      dinoTip: 'Listen, then hold SPEAK and say the letter!',
       onNavTap: _onNavTap,
       children: [
         PracticeCard(
@@ -196,9 +190,11 @@ class _PracticeAlphabetsPageState extends State<PracticeAlphabetsPage> {
         const SizedBox(height: 22),
         ListenSpeakButtons(
           onListen: _onListen,
-          onSpeak: _onSpeak,
+          onSpeakDown: onSpeakDown,
+          onSpeakUp: onSpeakUp,
           isPlaying: isPlaying,
           isListening: isListening,
+          isMicReady: isMicReady,
         ),
       ],
     );

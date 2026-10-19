@@ -28,7 +28,7 @@ class AiSoundPage extends StatefulWidget {
   State<AiSoundPage> createState() => _AiSoundPageState();
 }
 
-class _AiSoundPageState extends State<AiSoundPage> {
+class _AiSoundPageState extends State<AiSoundPage> with HoldToSpeak {
   // Words that are not good practice words on their own.
   static const Set<String> _notPracticeWords = {'THE', 'A', 'AN'};
 
@@ -45,7 +45,6 @@ class _AiSoundPageState extends State<AiSoundPage> {
 
   bool isLoading = true;
   bool isPlaying = false;
-  bool isListening = false;
   int currentIndex = 0;
   List<PracticeExercise> exercises = [];
 
@@ -131,7 +130,7 @@ class _AiSoundPageState extends State<AiSoundPage> {
     highlightedUnit = -1;
     isWholeWordLit = false;
     isPlaying = false;
-    isListening = false;
+    cancelSpeaking();
   }
 
   Future<void> _onListen() async {
@@ -200,22 +199,14 @@ class _AiSoundPageState extends State<AiSoundPage> {
     super.dispose();
   }
 
-  Future<void> _onSpeak() async {
-    if (isPlaying || isListening) return;
-    final run = ++_highlightRun;
-    setState(() {
-      isListening = true;
-      highlightedUnit = -1;
-    });
+  @override
+  String get speakTarget => currentExercise.word;
 
-    final check = await listenAndScore(context, currentExercise.word);
+  @override
+  bool get speakBlocked => isPlaying;
 
-    if (!mounted || run != _highlightRun) return;
-    setState(() {
-      isListening = false;
-    });
-    if (check != null) _showResultDialog(check);
-  }
+  @override
+  void onSpeechChecked(SpeechCheck check) => _showResultDialog(check);
 
   void _finish() {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -275,9 +266,11 @@ class _AiSoundPageState extends State<AiSoundPage> {
               const SizedBox(height: 22),
               ListenSpeakButtons(
                 onListen: _onListen,
-                onSpeak: _onSpeak,
+                onSpeakDown: onSpeakDown,
+                onSpeakUp: onSpeakUp,
                 isPlaying: isPlaying,
                 isListening: isListening,
+                isMicReady: isMicReady,
               ),
             ],
     );

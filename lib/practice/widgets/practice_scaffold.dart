@@ -364,18 +364,24 @@ class ChunkyButton extends StatelessWidget {
 }
 
 /// LISTEN and SPEAK buttons side by side.
+/// SPEAK is held down while the child talks: it turns red once the phone is
+/// really listening.
 class ListenSpeakButtons extends StatelessWidget {
   final VoidCallback onListen;
-  final VoidCallback onSpeak;
+  final VoidCallback onSpeakDown;
+  final VoidCallback onSpeakUp;
   final bool isPlaying;
   final bool isListening;
+  final bool isMicReady;
 
   const ListenSpeakButtons({
     super.key,
     required this.onListen,
-    required this.onSpeak,
+    required this.onSpeakDown,
+    required this.onSpeakUp,
     required this.isPlaying,
     required this.isListening,
+    required this.isMicReady,
   });
 
   @override
@@ -394,16 +400,89 @@ class ListenSpeakButtons extends StatelessWidget {
         ),
         const SizedBox(width: 14),
         Expanded(
-          child: ChunkyButton(
-            emoji: '🎤',
-            label: 'SPEAK',
-            color: PracticeColors.speak,
-            darkColor: PracticeColors.speakDark,
-            busy: isListening,
-            onTap: onSpeak,
+          child: HoldToSpeakButton(
+            onDown: onSpeakDown,
+            onUp: onSpeakUp,
+            isListening: isListening,
+            isMicReady: isMicReady,
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Big button the child holds while talking.
+/// HOLD & SPEAK → GET READY... (phone starting) → 🔴 LISTENING... (talk now).
+class HoldToSpeakButton extends StatelessWidget {
+  final VoidCallback onDown;
+  final VoidCallback onUp;
+  final bool isListening;
+  final bool isMicReady;
+
+  const HoldToSpeakButton({
+    super.key,
+    required this.onDown,
+    required this.onUp,
+    required this.isListening,
+    required this.isMicReady,
+  });
+
+  static const Color _live = Color(0xFFE53935);
+  static const Color _liveDark = Color(0xFFB71C1C);
+
+  @override
+  Widget build(BuildContext context) {
+    final String emoji;
+    final String label;
+    if (isMicReady) {
+      emoji = '🔴';
+      label = 'LISTENING...';
+    } else if (isListening) {
+      emoji = '⏳';
+      label = 'GET READY...';
+    } else {
+      emoji = '🎤';
+      label = 'HOLD & SPEAK';
+    }
+
+    final color = isMicReady ? _live : PracticeColors.speak;
+    final dark = isMicReady ? _liveDark : PracticeColors.speakDark;
+
+    return Listener(
+      onPointerDown: (_) => onDown(),
+      onPointerUp: (_) => onUp(),
+      onPointerCancel: (_) => onUp(),
+      child: AnimatedScale(
+        scale: isMicReady ? 1.06 : 1,
+        duration: const Duration(milliseconds: 150),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(26),
+            border: Border.all(color: Colors.white, width: isMicReady ? 5 : 3),
+            boxShadow: [BoxShadow(color: dark, offset: Offset(0, isListening ? 2 : 6))],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(emoji, style: const TextStyle(fontSize: 22)),
+              const SizedBox(width: 6),
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    label,
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

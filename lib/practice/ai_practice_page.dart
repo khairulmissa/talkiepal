@@ -31,9 +31,8 @@ class AiPracticePage extends StatefulWidget {
   State<AiPracticePage> createState() => _AiPracticePageState();
 }
 
-class _AiPracticePageState extends State<AiPracticePage> {
+class _AiPracticePageState extends State<AiPracticePage> with HoldToSpeak {
   bool isLoading = true;
-  bool isListening = false;
   bool isPlaying = false;
   int currentIndex = 0;
 
@@ -102,7 +101,7 @@ class _AiPracticePageState extends State<AiPracticePage> {
     SpeechService.instance.stop();
     _highlightRun++;
     highlightedWord = -1;
-    isListening = false;
+    cancelSpeaking();
     isPlaying = false;
   }
 
@@ -136,22 +135,14 @@ class _AiPracticePageState extends State<AiPracticePage> {
     super.dispose();
   }
 
-  Future<void> _onSpeak() async {
-    if (isPlaying || isListening) return;
-    final run = ++_highlightRun;
-    setState(() {
-      isListening = true;
-      highlightedWord = -1;
-    });
+  @override
+  String get speakTarget => currentExercise.word;
 
-    final check = await listenAndScore(context, currentExercise.word);
+  @override
+  bool get speakBlocked => isPlaying;
 
-    if (!mounted || run != _highlightRun) return;
-    setState(() {
-      isListening = false;
-    });
-    if (check != null) _showResultDialog(check);
-  }
+  @override
+  void onSpeechChecked(SpeechCheck check) => _showResultDialog(check);
 
   void _goToNextExercise() {
     if (currentIndex + 1 < exercises.length) {
@@ -180,8 +171,8 @@ class _AiPracticePageState extends State<AiPracticePage> {
   PracticeLook get _look => PracticeLook.forLevel(widget.level);
 
   String get _dinoTip => widget.level == 'beginner'
-      ? 'Listen, then say the word with me!'
-      : 'Listen to each word, then say the whole sentence!';
+      ? 'Listen, then hold SPEAK and say the word!'
+      : 'Listen to each word, then hold SPEAK and say the sentence!';
 
   @override
   Widget build(BuildContext context) {
@@ -224,9 +215,11 @@ class _AiPracticePageState extends State<AiPracticePage> {
         const SizedBox(height: 22),
         ListenSpeakButtons(
           onListen: _onListen,
-          onSpeak: _onSpeak,
+          onSpeakDown: onSpeakDown,
+          onSpeakUp: onSpeakUp,
           isPlaying: isPlaying,
           isListening: isListening,
+          isMicReady: isMicReady,
         ),
       ],
     );
