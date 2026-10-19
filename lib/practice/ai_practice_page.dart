@@ -4,6 +4,8 @@ import 'package:talkiepal/profile_page.dart';
 import 'package:talkiepal/services/exercise_service.dart';
 import 'package:talkiepal/services/speech_service.dart';
 import 'package:talkiepal/practice/widgets/practice_scaffold.dart';
+import 'package:talkiepal/practice/practice_session.dart';
+import 'package:talkiepal/practice/result_page.dart';
 import 'package:talkiepal/practice/speak_check.dart';
 import 'package:talkiepal/practice/widgets/score_dialog.dart';
 import 'package:talkiepal/widgets/kids_bottom_nav.dart';
@@ -18,6 +20,9 @@ class AiPracticePage extends StatefulWidget {
   final String topicEmoji;
   final int count;
 
+  /// Practise exactly these (e.g. the hard words again) instead of new AI words.
+  final List<PracticeExercise>? exercises;
+
   const AiPracticePage({
     super.key,
     required this.level,
@@ -25,6 +30,7 @@ class AiPracticePage extends StatefulWidget {
     required this.topic,
     this.topicEmoji = '⭐',
     this.count = 10,
+    this.exercises,
   });
 
   @override
@@ -44,6 +50,9 @@ class _AiPracticePageState extends State<AiPracticePage> with HoldToSpeak {
   int _highlightRun = 0;
   List<PracticeExercise> exercises = [];
 
+  // Scores and tries for the results screen.
+  PracticeSession session = PracticeSession();
+
   PracticeExercise get currentExercise => exercises[currentIndex];
 
   @override
@@ -59,16 +68,19 @@ class _AiPracticePageState extends State<AiPracticePage> with HoldToSpeak {
       _stopHighlight();
     });
 
-    final result = await ExerciseService.getExercises(
-      level: widget.level,
-      topic: widget.topic,
-      count: widget.count,
-    );
+    final given = widget.exercises;
+    final result = given != null
+        ? ExerciseResult(exercises: given, isOffline: false)
+        : await ExerciseService.getExercises(level: widget.level, topic: widget.topic, count: widget.count);
 
     if (!mounted) return;
 
     setState(() {
       exercises = result.exercises;
+      session = PracticeSession();
+      for (final e in exercises) {
+        session.addItem(e.word, emoji: e.emoji);
+      }
       isLoading = false;
     });
 
@@ -83,15 +95,26 @@ class _AiPracticePageState extends State<AiPracticePage> with HoldToSpeak {
     }
   }
 
+  /// Shows the results; "practise again" opens just the hard words.
   void _finish() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('🎉 Congratulations! You completed ${widget.topic.toLowerCase()}! 🎉'),
-        backgroundColor: const Color(0xFFA8D5A2),
-        duration: const Duration(seconds: 2),
+    final all = exercises;
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ResultPage(
+          session: session,
+          look: _look,
+          title: widget.topic,
+          practiseAgain: (labels) => AiPracticePage(
+            level: widget.level,
+            levelLabel: widget.levelLabel,
+            topic: widget.topic,
+            topicEmoji: widget.topicEmoji,
+            exercises: all.where((e) => labels.contains(e.word)).toList(),
+          ),
+        ),
       ),
     );
-    Navigator.pop(context);
   }
 
   List<String> get currentWords => currentExercise.word.split(' ');
@@ -142,7 +165,10 @@ class _AiPracticePageState extends State<AiPracticePage> with HoldToSpeak {
   bool get speakBlocked => isPlaying;
 
   @override
-  void onSpeechChecked(SpeechCheck check) => _showResultDialog(check);
+  void onSpeechChecked(SpeechCheck check) {
+    session.recordScore(currentExercise.word, check.score);
+    _showResultDialog(check);
+  }
 
   void _goToNextExercise() {
     if (currentIndex + 1 < exercises.length) {

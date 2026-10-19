@@ -4,6 +4,8 @@ import 'package:talkiepal/profile_page.dart';
 import 'package:talkiepal/services/exercise_service.dart';
 import 'package:talkiepal/services/speech_service.dart';
 import 'package:talkiepal/practice/widgets/practice_scaffold.dart';
+import 'package:talkiepal/practice/practice_session.dart';
+import 'package:talkiepal/practice/result_page.dart';
 import 'package:talkiepal/practice/speak_check.dart';
 import 'package:talkiepal/practice/widgets/score_dialog.dart';
 import 'package:talkiepal/widgets/kids_bottom_nav.dart';
@@ -17,11 +19,15 @@ class AiSoundPage extends StatefulWidget {
   final bool isSentence;
   final int count;
 
+  /// Practise exactly these (e.g. the hard words again) instead of new AI words.
+  final List<PracticeExercise>? exercises;
+
   const AiSoundPage({
     super.key,
     required this.sound,
     required this.isSentence,
     this.count = 10,
+    this.exercises,
   });
 
   @override
@@ -47,6 +53,9 @@ class _AiSoundPageState extends State<AiSoundPage> with HoldToSpeak {
   bool isPlaying = false;
   int currentIndex = 0;
   List<PracticeExercise> exercises = [];
+
+  // Scores and tries for the results screen.
+  PracticeSession session = PracticeSession();
 
   // Index of the letter box (words) or word (sentences) that is lit up.
   int highlightedUnit = -1;
@@ -98,17 +107,20 @@ class _AiSoundPageState extends State<AiSoundPage> with HoldToSpeak {
       _stopHighlight();
     });
 
-    final result = await ExerciseService.getExercises(
-      level: _apiLevel,
-      topic: widget.sound,
-      count: widget.count,
-    );
+    final given = widget.exercises;
+    final result = given != null
+        ? ExerciseResult(exercises: given, isOffline: false)
+        : await ExerciseService.getExercises(level: _apiLevel, topic: widget.sound, count: widget.count);
 
     if (!mounted) return;
 
     setState(() {
       // Words like "THE" or "A" have no picture and sound wrong said alone.
       exercises = result.exercises.where((e) => !_notPracticeWords.contains(e.word)).toList();
+      session = PracticeSession();
+      for (final e in exercises) {
+        session.addItem(e.word, emoji: e.emoji);
+      }
       isLoading = false;
     });
 
@@ -206,17 +218,29 @@ class _AiSoundPageState extends State<AiSoundPage> with HoldToSpeak {
   bool get speakBlocked => isPlaying;
 
   @override
-  void onSpeechChecked(SpeechCheck check) => _showResultDialog(check);
+  void onSpeechChecked(SpeechCheck check) {
+    session.recordScore(currentExercise.word, check.score);
+    _showResultDialog(check);
+  }
 
+  /// Shows the results; "practise again" opens just the hard words.
   void _finish() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('🎉 Congratulations! You completed all of them! 🎉'),
-        backgroundColor: Color(0xFFA8D5A2),
-        duration: Duration(seconds: 2),
+    final all = exercises;
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ResultPage(
+          session: session,
+          look: _look,
+          title: widget.isSentence ? 'Mini Challenge ${widget.sound}' : 'Sound ${widget.sound}',
+          practiseAgain: (labels) => AiSoundPage(
+            sound: widget.sound,
+            isSentence: widget.isSentence,
+            exercises: all.where((e) => labels.contains(e.word)).toList(),
+          ),
+        ),
       ),
     );
-    Navigator.pop(context);
   }
 
   void _goToNext() {
