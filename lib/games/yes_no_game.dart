@@ -6,6 +6,7 @@ import 'package:talkiepal/games/widgets/game_scaffold.dart';
 import 'package:talkiepal/practice/widgets/practice_scaffold.dart';
 import 'package:talkiepal/practice/widgets/success_dialog.dart';
 import 'package:talkiepal/services/exercise_service.dart';
+import 'package:talkiepal/services/speech_service.dart';
 
 /// One round: the picture shown and the word Dino asks about.
 class _Round {
@@ -123,6 +124,7 @@ class _YesNoGameState extends State<YesNoGame> {
 
   // Call inside setState.
   void _resetRound() {
+    SpeechService.instance.stop();
     _highlightRun++;
     highlightedWord = -1;
     isPlaying = false;
@@ -137,15 +139,14 @@ class _YesNoGameState extends State<YesNoGame> {
       isPlaying = true;
     });
 
-    // Audio is not connected yet; the highlight shows the reading pace.
-    final words = questionWords;
-    for (var i = 0; i < words.length; i++) {
-      if (!mounted || run != _highlightRun) return;
-      setState(() {
+    // One word at a time, each lit as it is said.
+    await speakWordByWord(
+      toSpoken(_question(currentRound.askedWord)),
+      keepGoing: () => mounted && run == _highlightRun,
+      onWord: (i) => setState(() {
         highlightedWord = i;
-      });
-      await Future.delayed(const Duration(milliseconds: 500));
-    }
+      }),
+    );
 
     if (!mounted || run != _highlightRun) return;
     setState(() {
@@ -156,6 +157,7 @@ class _YesNoGameState extends State<YesNoGame> {
 
   void _onAnswer(bool saidYes) {
     if (isSolved || wrongAnswer == saidYes) return;
+    SpeechService.instance.stop();
 
     setState(() {
       _highlightRun++;
@@ -186,6 +188,12 @@ class _YesNoGameState extends State<YesNoGame> {
         onNext: () => Navigator.pop(context),
       );
     }
+  }
+
+  @override
+  void dispose() {
+    SpeechService.instance.stop();
+    super.dispose();
   }
 
   @override

@@ -6,6 +6,7 @@ import 'package:talkiepal/games/widgets/game_scaffold.dart';
 import 'package:talkiepal/practice/widgets/practice_scaffold.dart';
 import 'package:talkiepal/practice/widgets/success_dialog.dart';
 import 'package:talkiepal/services/exercise_service.dart';
+import 'package:talkiepal/services/speech_service.dart';
 
 /// One round: the word Dino says and the four pictures to pick from.
 class _Round {
@@ -72,6 +73,7 @@ class _SoundMatcherGameState extends State<SoundMatcherGame> {
       rounds = _buildRounds(result.words);
       isLoading = false;
     });
+    _autoPlay();
 
     if (result.isOffline) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -97,6 +99,7 @@ class _SoundMatcherGameState extends State<SoundMatcherGame> {
 
   // Call inside setState.
   void _resetRound() {
+    SpeechService.instance.stop();
     _playRun++;
     isPlaying = false;
     isSolved = false;
@@ -110,12 +113,18 @@ class _SoundMatcherGameState extends State<SoundMatcherGame> {
       isPlaying = true;
     });
 
-    // Audio is not connected yet; the word shows in a bubble instead.
-    await Future.delayed(const Duration(milliseconds: 1500));
+    await SpeechService.instance.speak(toSpoken(currentRound.target.word));
 
     if (!mounted || run != _playRun) return;
     setState(() {
       isPlaying = false;
+    });
+  }
+
+  /// Says the word by itself when a new round starts, so the child can just listen.
+  void _autoPlay() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !isLoading && rounds.isNotEmpty) _onPlaySound();
     });
   }
 
@@ -143,6 +152,7 @@ class _SoundMatcherGameState extends State<SoundMatcherGame> {
         currentIndex++;
         _resetRound();
       });
+      _autoPlay();
     } else {
       showSuccessDialog(
         context,
@@ -151,6 +161,12 @@ class _SoundMatcherGameState extends State<SoundMatcherGame> {
         onNext: () => Navigator.pop(context),
       );
     }
+  }
+
+  @override
+  void dispose() {
+    SpeechService.instance.stop();
+    super.dispose();
   }
 
   @override
@@ -187,20 +203,7 @@ class _SoundMatcherGameState extends State<SoundMatcherGame> {
         ),
       ),
       const SizedBox(height: 10),
-      // Placeholder for the voice: shows the word while it "plays".
-      AnimatedOpacity(
-        opacity: isPlaying ? 1 : 0,
-        duration: const Duration(milliseconds: 200),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-          decoration: BoxDecoration(color: _look.lightColor, borderRadius: BorderRadius.circular(16)),
-          child: Text(
-            '🔊 ${round.target.word}',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: _look.darkColor),
-          ),
-        ),
-      ),
-      const SizedBox(height: 6),
+      const SizedBox(height: 16),
       GridView.count(
         crossAxisCount: 2,
         shrinkWrap: true,
