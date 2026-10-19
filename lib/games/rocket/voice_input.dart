@@ -33,19 +33,23 @@ class MicVoiceInput implements VoiceInput {
       sampleRate: 16000,
       numChannels: 1,
     ));
-    return audio.map(_loudness);
+    return audio.map(loudnessOf);
   }
 
   /// Loudness of one chunk of 16-bit sound: quiet room about 0.1, talking about 0.5+.
-  static double _loudness(Uint8List bytes) {
-    final samples = bytes.buffer.asInt16List(bytes.offsetInBytes, bytes.lengthInBytes ~/ 2);
-    if (samples.isEmpty) return 0;
+  static double loudnessOf(Uint8List bytes) {
+    // Read the samples one by one: on a real phone a chunk can start at an odd
+    // byte, which a direct Int16List view does not allow.
+    final data = ByteData.sublistView(bytes);
+    final count = bytes.lengthInBytes ~/ 2;
+    if (count == 0) return 0;
 
     var sum = 0.0;
-    for (final s in samples) {
+    for (var i = 0; i < count; i++) {
+      final s = data.getInt16(i * 2, Endian.little);
       sum += s * s;
     }
-    final rms = sqrt(sum / samples.length) / 32768;
+    final rms = sqrt(sum / count) / 32768;
     if (rms <= 0) return 0;
 
     // From decibels: -60 dB (silence) is 0, -10 dB (shouting) is 1.
