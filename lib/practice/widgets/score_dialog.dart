@@ -53,8 +53,11 @@ Future<void> showScoreDialog(
   if (heardNothing) {
     emoji = '🙉';
     title = "I Can't Hear You!";
-    detail = 'Tap SPEAK and say "$target" again';
-    hint = 'Speak a little louder, close to the phone.';
+    detail = 'Hold SPEAK and say "$target" again';
+    // Short words are the hardest for the phone to hear.
+    hint = target.trim().contains(' ')
+        ? 'Speak a little louder, close to the phone.'
+        : 'Wait for the red button, then say it a little longer and louder.';
   } else if (score >= ScoreBand.great) {
     emoji = '🎉';
     title = 'Amazing!';

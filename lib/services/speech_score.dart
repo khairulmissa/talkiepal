@@ -85,26 +85,26 @@ double _similarity(String a, String b) {
 const Map<String, String> _numberWords = {
   '0': 'zero', '1': 'one', '2': 'two', '3': 'three', '4': 'four', '5': 'five',
   '6': 'six', '7': 'seven', '8': 'eight', '9': 'nine', '10': 'ten',
-  'to': 'two', 'too': 'two', 'for': 'four', 'won': 'one',
+  'to': 'two', 'too': 'two', 'for': 'four', 'won': 'one', 'ate': 'eight', 'tree': 'three',
 };
 
 /// How the phone may write each letter when a child says its name.
 const Map<String, Set<String>> _letterSounds = {
-  'a': {'a', 'ay', 'eh', 'hey', 'eight'},
+  'a': {'a', 'ay', 'eh', 'hey', 'eight', 'ae', 'hay', 'aa'},
   'b': {'b', 'be', 'bee'},
   'c': {'c', 'see', 'sea', 'si'},
   'd': {'d', 'dee', 'de'},
-  'e': {'e', 'ee', 'he'},
+  'e': {'e', 'ee', 'he', 'eee'},
   'f': {'f', 'ef', 'eff'},
   'g': {'g', 'gee', 'ji', 'jee'},
   'h': {'h', 'aitch', 'each', 'age', 'edge'},
-  'i': {'i', 'eye', 'aye', 'hi'},
+  'i': {'i', 'eye', 'aye', 'hi', 'ai'},
   'j': {'j', 'jay', 'jae'},
   'k': {'k', 'kay', 'okay', 'ok', 'cay'},
   'l': {'l', 'el', 'elle', 'ell', 'hell'},
   'm': {'m', 'em', 'um'},
   'n': {'n', 'en', 'in', 'and'},
-  'o': {'o', 'oh', 'owe'},
+  'o': {'o', 'oh', 'owe', 'ow', 'zero'},
   'p': {'p', 'pee', 'pea'},
   'q': {'q', 'queue', 'cue', 'kyu', 'cute'},
   'r': {'r', 'are', 'ar', 'our', 'or'},

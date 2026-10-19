@@ -15,9 +15,11 @@ abstract class HearingService {
   /// False when it is not allowed or the phone has none.
   Future<bool> isAvailable();
 
-  /// Starts listening. [onReady] is called once the phone is really
-  /// listening, so the child knows they can talk.
-  Future<void> start({void Function()? onReady});
+  /// Starts listening. [onRecording] is told true once the microphone is
+  /// really recording (the child can talk) and false while the phone is
+  /// starting again. [shortAnswer] is for one word or letter: the phone then
+  /// uses its model for short phrases and waits a little longer for it.
+  Future<void> start({void Function(bool isRecording)? onRecording, bool shortAnswer = false});
 
   /// Stops listening and returns what was heard, best guess first.
   /// Keeps listening a moment longer first, so the last sound is not cut off.
@@ -60,6 +62,9 @@ class PhoneHearingService implements HearingService {
   DateTime? _lastSound;
   double _maxLevel = -100;
   Timer? _watchdog;
+  bool _isRecording = false;
+  void Function(bool)? _onRecording;
+  bool _shortAnswer = false;
 
   // Errors that will not get better by trying again.
   static const Set<String> _hardErrors = {
@@ -126,8 +131,10 @@ class PhoneHearingService implements HearingService {
   }
 
   @override
-  Future<void> start({void Function()? onReady}) async {
+  Future<void> start({void Function(bool isRecording)? onRecording, bool shortAnswer = false}) async {
     if (!await isAvailable()) return;
+    _onRecording = onRecording;
+    _shortAnswer = shortAnswer;
 
     // Make sure the last listen is fully finished first.
     if (_speech.isListening) await _speech.cancel();
@@ -147,10 +154,13 @@ class PhoneHearingService implements HearingService {
       await Future.delayed(const Duration(milliseconds: 400));
     }
 
-    if (_wanted) {
-      onReady?.call();
-      _startWatchdog();
-    }
+    if (_wanted) _startWatchdog();
+  }
+
+  void _setRecording(bool value) {
+    if (_isRecording == value) return;
+    _isRecording = value;
+    if (_wanted || !value) _onRecording?.call(value);
   }
 
   /// While the button is held, start again if the microphone goes quiet
@@ -174,6 +184,7 @@ class PhoneHearingService implements HearingService {
   void _onSound(double level) {
     _lastSound = DateTime.now();
     if (level > _maxLevel) _maxLevel = level;
+    if (_wanted) _setRecording(true);
     final recording = _recording;
     if (recording != null && !recording.isCompleted) recording.complete();
   }
@@ -182,8 +193,10 @@ class PhoneHearingService implements HearingService {
     if (!keepHeard) _heard = [];
     _hasStarted = false;
     _gotFinalWords = false;
+    _setRecording(false);
     _recording = Completer<void>();
-    _lastSound = null;
+    // Counts from now, so a listen that never sends any sound is noticed too.
+    _lastSound = DateTime.now();
     _session = Completer<void>();
 
     try {
@@ -209,7 +222,9 @@ class PhoneHearingService implements HearingService {
           localeId: 'en_US',
           partialResults: true,
           cancelOnError: true,
-          listenMode: ListenMode.confirmation,
+          // Android's "web search" model is made for short phrases and hears
+          // single words and letters much better than the dictation model.
+          listenMode: _shortAnswer ? ListenMode.search : ListenMode.dictation,
         ),
       );
     } catch (e) {
@@ -224,8 +239,18 @@ class PhoneHearingService implements HearingService {
 
     // Keep listening a little after the button is let go.
     await Future.delayed(const Duration(milliseconds: 700));
+
+    // A single word is short: give the phone up to a second more to
+    // recognise it before stopping, instead of cutting it off.
+    if (_shortAnswer) {
+      for (var i = 0; i < 10 && _heard.isEmpty && _session != null && !_session!.isCompleted; i++) {
+        await Future.delayed(const Duration(milliseconds: 100));
+      }
+    }
+
     _wanted = false;
     _watchdog?.cancel();
+    _setRecording(false);
     if (_speech.isListening) await _speech.stop();
 
     // Wait for the phone's final answer, but not for ever.
@@ -242,6 +267,7 @@ class PhoneHearingService implements HearingService {
   Future<void> stop() async {
     _wanted = false;
     _watchdog?.cancel();
+    _setRecording(false);
     _completeSession();
     _session = null;
     if (_speech.isListening) await _speech.cancel();

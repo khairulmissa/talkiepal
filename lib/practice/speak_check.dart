@@ -69,13 +69,21 @@ mixin HoldToSpeak<T extends StatefulWidget> on State<T> {
     _maxHold?.cancel();
     _maxHold = Timer(_longestHold, onSpeakUp);
 
-    await hearing.start(onReady: () {
-      if (!mounted || !_isHolding) return;
-      HapticFeedback.mediumImpact();
-      setState(() {
-        isMicReady = true;
-      });
-    });
+    final target = speakTarget.trim();
+    await hearing.start(
+      // One word or letter: the phone listens in a way that suits short answers.
+      shortAnswer: !target.contains(' '),
+      // Red (talk now) only while the microphone is really recording; back
+      // to "get ready" while the phone starts listening again.
+      onRecording: (recording) {
+        if (!mounted) return;
+        final ready = recording && _isHolding;
+        if (ready && !isMicReady) HapticFeedback.mediumImpact();
+        setState(() {
+          isMicReady = ready;
+        });
+      },
+    );
   }
 
   Future<void> onSpeakUp() async {
