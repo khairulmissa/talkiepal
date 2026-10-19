@@ -35,6 +35,11 @@ abstract class HearingService {
 /// earlier listen, or a short silence. While the button is held it is
 /// simply started again, so whatever the child says before letting go is
 /// still heard.
+///
+/// The plugin says "listening" straight away, even when the recogniser is
+/// stuck and records nothing. Only sound levels from the microphone prove it
+/// is really recording, so those are used to tell the child to talk, and a
+/// listen that sends none is started again.
 class PhoneHearingService implements HearingService {
   final SpeechToText _speech = SpeechToText();
   Future<bool>? _setUp;
@@ -46,10 +51,15 @@ class PhoneHearingService implements HearingService {
 
   // The listen going on now, and whether it has really started.
   Completer<void>? _session;
-  Completer<void>? _ready;
   bool _hasStarted = false;
   bool _gotFinalWords = false;
   List<String> _heard = [];
+
+  // Sound levels prove the microphone is really recording.
+  Completer<void>? _recording;
+  DateTime? _lastSound;
+  double _maxLevel = -100;
+  Timer? _watchdog;
 
   // Errors that will not get better by trying again.
   static const Set<String> _hardErrors = {
@@ -88,8 +98,6 @@ class PhoneHearingService implements HearingService {
 
   void _markStarted() {
     _hasStarted = true;
-    final ready = _ready;
-    if (ready != null && !ready.isCompleted) ready.complete();
   }
 
   /// The phone stopped listening. If the child is still holding the button,
@@ -112,9 +120,9 @@ class PhoneHearingService implements HearingService {
   void _completeSession() {
     final session = _session;
     if (session != null && !session.isCompleted) session.complete();
-    // Wake up anyone still waiting for "ready".
-    final ready = _ready;
-    if (ready != null && !ready.isCompleted) ready.complete();
+    // Wake up anyone still waiting for the microphone.
+    final recording = _recording;
+    if (recording != null && !recording.isCompleted && !_wanted) recording.complete();
   }
 
   @override
@@ -127,21 +135,56 @@ class PhoneHearingService implements HearingService {
     _wanted = true;
     _restarts = 0;
     _heard = [];
-    await _beginListen(keepHeard: false);
+    _maxLevel = -100;
 
-    // Tell the child to talk once the phone is really listening (or after
-    // a moment, so the button never stays on "get ready").
-    await _ready!.future.timeout(const Duration(milliseconds: 1500), onTimeout: () {});
-    if (_wanted) onReady?.call();
+    for (var attempt = 0; attempt < 3 && _wanted; attempt++) {
+      await _beginListen(keepHeard: false);
+      // Really recording once the microphone sends sound levels.
+      await _recording!.future.timeout(const Duration(milliseconds: 1200), onTimeout: () {});
+      if (_recording!.isCompleted) break;
+      debugPrint('[STT] no sound from the microphone, starting again');
+      await _speech.cancel();
+      await Future.delayed(const Duration(milliseconds: 400));
+    }
+
+    if (_wanted) {
+      onReady?.call();
+      _startWatchdog();
+    }
+  }
+
+  /// While the button is held, start again if the microphone goes quiet
+  /// (no sound levels at all, not even from a silent room).
+  void _startWatchdog() {
+    _watchdog?.cancel();
+    _watchdog = Timer.periodic(const Duration(milliseconds: 500), (_) {
+      if (!_wanted) {
+        _watchdog?.cancel();
+        return;
+      }
+      final last = _lastSound;
+      if (last != null && DateTime.now().difference(last) > const Duration(milliseconds: 1500)) {
+        _lastSound = DateTime.now();
+        debugPrint('[STT] microphone went quiet');
+        _listenEnded();
+      }
+    });
+  }
+
+  void _onSound(double level) {
+    _lastSound = DateTime.now();
+    if (level > _maxLevel) _maxLevel = level;
+    final recording = _recording;
+    if (recording != null && !recording.isCompleted) recording.complete();
   }
 
   Future<void> _beginListen({required bool keepHeard}) async {
     if (!keepHeard) _heard = [];
     _hasStarted = false;
     _gotFinalWords = false;
+    _recording = Completer<void>();
+    _lastSound = null;
     _session = Completer<void>();
-    _ready ??= Completer<void>();
-    if (_ready!.isCompleted && !keepHeard) _ready = Completer<void>();
 
     try {
       await _speech.listen(
@@ -158,6 +201,7 @@ class PhoneHearingService implements HearingService {
             _completeSession();
           }
         },
+        onSoundLevelChange: _onSound,
         listenOptions: SpeechListenOptions(
           // The child decides when to stop by letting go of the button.
           listenFor: const Duration(seconds: 10),
@@ -181,6 +225,7 @@ class PhoneHearingService implements HearingService {
     // Keep listening a little after the button is let go.
     await Future.delayed(const Duration(milliseconds: 700));
     _wanted = false;
+    _watchdog?.cancel();
     if (_speech.isListening) await _speech.stop();
 
     // Wait for the phone's final answer, but not for ever.
@@ -189,17 +234,16 @@ class PhoneHearingService implements HearingService {
       await session.future.timeout(const Duration(seconds: 3), onTimeout: () {});
     }
     _session = null;
-    _ready = null;
-    debugPrint('[STT] heard $_heard (restarted $_restarts times)');
+    debugPrint('[STT] heard $_heard (restarted $_restarts times, loudest ${_maxLevel.toStringAsFixed(1)})');
     return _heard;
   }
 
   @override
   Future<void> stop() async {
     _wanted = false;
+    _watchdog?.cancel();
     _completeSession();
     _session = null;
-    _ready = null;
     if (_speech.isListening) await _speech.cancel();
   }
 }
