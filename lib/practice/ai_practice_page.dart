@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:talkiepal/game_page.dart';
 import 'package:talkiepal/profile_page.dart';
 import 'package:talkiepal/services/exercise_service.dart';
+import 'package:talkiepal/services/speech_service.dart';
 import 'package:talkiepal/practice/widgets/practice_scaffold.dart';
 import 'package:talkiepal/practice/widgets/success_dialog.dart';
 import 'package:talkiepal/widgets/kids_bottom_nav.dart';
@@ -119,6 +120,7 @@ class _AiPracticePageState extends State<AiPracticePage> {
 
   // Call inside setState.
   void _stopHighlight() {
+    SpeechService.instance.stop();
     _highlightRun++;
     highlightedWord = -1;
     isListening = false;
@@ -127,17 +129,34 @@ class _AiPracticePageState extends State<AiPracticePage> {
 
   Future<void> _onListen() async {
     if (isPlaying || isListening) return;
+    final run = ++_highlightRun;
     setState(() {
       isPlaying = true;
+      highlightColor = PracticeColors.listen;
     });
 
-    // Audio is not connected yet; the highlight shows the reading pace.
-    final finished = await _highlightWords(PracticeColors.listen, const Duration(milliseconds: 700));
+    // Each word lights up as the voice says it.
+    await SpeechService.instance.speak(
+      toSpoken(currentExercise.word),
+      onWord: (i) {
+        if (!mounted || run != _highlightRun) return;
+        setState(() {
+          highlightedWord = i;
+        });
+      },
+    );
 
-    if (!mounted || !finished) return;
+    if (!mounted || run != _highlightRun) return;
     setState(() {
+      highlightedWord = -1;
       isPlaying = false;
     });
+  }
+
+  @override
+  void dispose() {
+    SpeechService.instance.stop();
+    super.dispose();
   }
 
   Future<void> _onSpeak() async {
