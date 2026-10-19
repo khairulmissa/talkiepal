@@ -24,6 +24,8 @@ dependencies:
   flame: ^1.38.2
   record: ^6.2.1
   flutter_tts: ^4.2.5
+  # 7.5 needs Flutter 3.44; 7.4 works on older Flutter too.
+  speech_to_text: ">=7.4.0 <7.5.0"
 
 dev_dependencies:
   flutter_test:

@@ -4,7 +4,8 @@ import 'package:talkiepal/profile_page.dart';
 import 'package:talkiepal/services/exercise_service.dart';
 import 'package:talkiepal/services/speech_service.dart';
 import 'package:talkiepal/practice/widgets/practice_scaffold.dart';
-import 'package:talkiepal/practice/widgets/success_dialog.dart';
+import 'package:talkiepal/practice/speak_check.dart';
+import 'package:talkiepal/practice/widgets/score_dialog.dart';
 import 'package:talkiepal/widgets/kids_bottom_nav.dart';
 import 'package:talkiepal/progress_page.dart';
 
@@ -133,30 +134,6 @@ class _AiSoundPageState extends State<AiSoundPage> {
     isListening = false;
   }
 
-  /// Lights up each unit one by one.
-  /// Returns false if it was stopped because the item changed.
-  Future<bool> _highlightUnits(Color color, Duration perUnit) async {
-    final run = ++_highlightRun;
-    final units = currentUnits;
-
-    for (var i = 0; i < units.length; i++) {
-      if (!mounted || run != _highlightRun) return false;
-      setState(() {
-        highlightColor = color;
-        highlightedUnit = i;
-      });
-      await Future.delayed(perUnit);
-    }
-
-    if (!mounted || run != _highlightRun) return false;
-    setState(() {
-      highlightedUnit = -1;
-    });
-    return true;
-  }
-
-  Duration get _pace => Duration(milliseconds: widget.isSentence ? 600 : 500);
-
   Future<void> _onListen() async {
     if (isPlaying || isListening) return;
     final run = ++_highlightRun;
@@ -225,26 +202,19 @@ class _AiSoundPageState extends State<AiSoundPage> {
 
   Future<void> _onSpeak() async {
     if (isPlaying || isListening) return;
+    final run = ++_highlightRun;
     setState(() {
       isListening = true;
+      highlightedUnit = -1;
     });
 
-    final finished = await _highlightUnits(PracticeColors.speak, _pace);
-    if (!mounted || !finished) return;
+    final check = await listenAndScore(context, currentExercise.word);
 
-    final score = await _checkPronunciation();
-    if (!mounted) return;
-
+    if (!mounted || run != _highlightRun) return;
     setState(() {
       isListening = false;
     });
-    _showResultDialog(score);
-  }
-
-  /// How close the child's pronunciation was, from 0 to 100.
-  /// Speech-to-text is not connected yet, so this always returns 100.
-  Future<int> _checkPronunciation() async {
-    return 100;
+    if (check != null) _showResultDialog(check);
   }
 
   void _finish() {
@@ -269,103 +239,16 @@ class _AiSoundPageState extends State<AiSoundPage> {
     }
   }
 
-  void _showResultDialog(int score) {
-    if (score >= 100) {
-      final bool isLast = currentIndex == exercises.length - 1;
+  void _showResultDialog(SpeechCheck check) {
+    final bool isLast = currentIndex == exercises.length - 1;
 
-      showSuccessDialog(
-        context,
-        detail: 'You scored $score%!',
-        nextLabel: isLast ? 'FINISH →' : 'NEXT →',
-        onNext: _goToNext,
-      );
-      return;
-    }
-
-    const Color mainColor = Color(0xFFFF6B6B);
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext dialogContext) {
-        return Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(25),
-          ),
-          child: Container(
-            padding: const EdgeInsets.all(25),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFFFFB6B6), mainColor],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(25),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  '❌ OOPS! ❌',
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  '$score%',
-                  style: const TextStyle(
-                    fontSize: 40,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                const Text(
-                  'Almost there! Listen again and repeat!',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 16, color: Colors.white),
-                ),
-                const SizedBox(height: 20),
-                _buildDialogButton(
-                  label: 'TRY AGAIN',
-                  color: mainColor,
-                  onTap: () => Navigator.pop(dialogContext),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildDialogButton({
-    required String label,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(30),
-        ),
-        child: Center(
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
-          ),
-        ),
-      ),
+    showScoreDialog(
+      context,
+      score: check.score,
+      target: currentExercise.word,
+      heard: check.heard,
+      nextLabel: isLast ? 'FINISH →' : 'NEXT →',
+      onNext: _goToNext,
     );
   }
 

@@ -4,7 +4,8 @@ import 'package:talkiepal/profile_page.dart';
 import 'package:talkiepal/services/exercise_service.dart';
 import 'package:talkiepal/services/speech_service.dart';
 import 'package:talkiepal/practice/widgets/practice_scaffold.dart';
-import 'package:talkiepal/practice/widgets/success_dialog.dart';
+import 'package:talkiepal/practice/speak_check.dart';
+import 'package:talkiepal/practice/widgets/score_dialog.dart';
 import 'package:talkiepal/widgets/kids_bottom_nav.dart';
 import 'package:talkiepal/progress_page.dart';
 
@@ -96,28 +97,6 @@ class _AiPracticePageState extends State<AiPracticePage> {
 
   List<String> get currentWords => currentExercise.word.split(' ');
 
-  /// Lights up each word of the current exercise one by one.
-  /// Returns false if it was stopped because the exercise changed.
-  Future<bool> _highlightWords(Color color, Duration perWord) async {
-    final run = ++_highlightRun;
-    final words = currentWords;
-
-    for (var i = 0; i < words.length; i++) {
-      if (!mounted || run != _highlightRun) return false;
-      setState(() {
-        highlightColor = color;
-        highlightedWord = i;
-      });
-      await Future.delayed(perWord);
-    }
-
-    if (!mounted || run != _highlightRun) return false;
-    setState(() {
-      highlightedWord = -1;
-    });
-    return true;
-  }
-
   // Call inside setState.
   void _stopHighlight() {
     SpeechService.instance.stop();
@@ -159,18 +138,19 @@ class _AiPracticePageState extends State<AiPracticePage> {
 
   Future<void> _onSpeak() async {
     if (isPlaying || isListening) return;
+    final run = ++_highlightRun;
     setState(() {
       isListening = true;
+      highlightedWord = -1;
     });
 
-    // Speech checking is not connected yet, so this always passes.
-    final finished = await _highlightWords(PracticeColors.speak, const Duration(milliseconds: 900));
+    final check = await listenAndScore(context, currentExercise.word);
 
-    if (!mounted || !finished) return;
+    if (!mounted || run != _highlightRun) return;
     setState(() {
       isListening = false;
     });
-    _showResultDialog();
+    if (check != null) _showResultDialog(check);
   }
 
   void _goToNextExercise() {
@@ -184,12 +164,14 @@ class _AiPracticePageState extends State<AiPracticePage> {
     }
   }
 
-  void _showResultDialog() {
+  void _showResultDialog(SpeechCheck check) {
     final bool isLastExercise = currentIndex == exercises.length - 1;
 
-    showSuccessDialog(
+    showScoreDialog(
       context,
-      detail: 'You said "${currentExercise.word}"!',
+      score: check.score,
+      target: currentExercise.word,
+      heard: check.heard,
       nextLabel: isLastExercise ? 'FINISH →' : 'NEXT →',
       onNext: _goToNextExercise,
     );

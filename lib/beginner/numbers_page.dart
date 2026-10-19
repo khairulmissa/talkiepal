@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:talkiepal/game_page.dart';
 import 'package:talkiepal/profile_page.dart';
 import 'package:talkiepal/practice/widgets/practice_scaffold.dart';
-import 'package:talkiepal/practice/widgets/success_dialog.dart';
+import 'package:talkiepal/practice/speak_check.dart';
+import 'package:talkiepal/practice/widgets/score_dialog.dart';
 import 'package:talkiepal/services/speech_service.dart';
 import 'package:talkiepal/widgets/kids_bottom_nav.dart';
 import 'package:talkiepal/progress_page.dart';
@@ -56,12 +57,14 @@ class _PracticeNumbers1To10PageState extends State<PracticeNumbers1To10Page> {
     }
   }
 
-  void _showResultDialog(BuildContext context, {required bool isSuccess}) {
-    bool isLastExercise = currentIndex == exercises.length - 1;
+  void _showResultDialog(SpeechCheck check) {
+    final bool isLastExercise = currentIndex == exercises.length - 1;
 
-    showSuccessDialog(
+    showScoreDialog(
       context,
-      detail: 'You said "${currentExercise['word']}"!',
+      score: check.score,
+      target: currentExercise['word']!,
+      heard: check.heard,
       nextLabel: isLastExercise ? 'FINISH →' : 'NEXT NUMBER →',
       onNext: _goToNextExercise,
     );
@@ -95,13 +98,12 @@ class _PracticeNumbers1To10PageState extends State<PracticeNumbers1To10Page> {
       isListening = true;
     });
 
-    // Speech checking is not connected yet, so this always passes.
-    await Future.delayed(const Duration(seconds: 2));
+    final check = await listenAndScore(context, currentExercise['word']!);
     if (!mounted) return;
     setState(() {
       isListening = false;
     });
-    _showResultDialog(context, isSuccess: true);
+    if (check != null) _showResultDialog(check);
   }
 
   @override

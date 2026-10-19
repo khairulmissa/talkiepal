@@ -2,8 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>TalkiePal listens to the words your child says in practice to show how clearly they spoke. Nothing is saved.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>TalkiePal listens to how loud your child is speaking in the Voice Rocket game. Nothing is recorded or saved.</string>
+	<string>TalkiePal listens to your child speaking in practice and in the Voice Rocket game. Nothing is recorded or saved.</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
