@@ -96,12 +96,29 @@ Future<bool> speakWordByWord(
   for (var i = 0; i < words.length; i++) {
     if (!keepGoing()) return false;
     onWord?.call(i);
-    await SpeechService.instance.speak(words[i], slow: slow);
+
+    if (_saidWithNext.contains(words[i].toLowerCase()) && i + 1 < words.length) {
+      // "the" said alone sounds like "thee", so say it with the next word
+      // ("the rabbit") and move the light on part-way through.
+      final next = i + 1;
+      final light = Future.delayed(Duration(milliseconds: slow ? 450 : 350), () {
+        if (keepGoing()) onWord?.call(next);
+      });
+      await SpeechService.instance.speak('${words[i]} ${words[next]}', slow: slow);
+      await light;
+      i = next;
+    } else {
+      await SpeechService.instance.speak(words[i], slow: slow);
+    }
+
     if (!keepGoing()) return false;
     await Future.delayed(const Duration(milliseconds: 280));
   }
   return keepGoing();
 }
+
+/// Small words that sound wrong when said on their own.
+const Set<String> _saidWithNext = {'the', 'a', 'an'};
 
 /// Turns a word written in capitals into something the voice reads as a word,
 /// not letter by letter: "LION" becomes "lion". A single letter stays a capital

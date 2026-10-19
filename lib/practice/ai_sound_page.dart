@@ -28,6 +28,9 @@ class AiSoundPage extends StatefulWidget {
 }
 
 class _AiSoundPageState extends State<AiSoundPage> {
+  // Words that are not good practice words on their own.
+  static const Set<String> _notPracticeWords = {'THE', 'A', 'AN'};
+
   static const Map<String, String> _soundTips = {
     'R': 'Focus on the "R" sound - Roll your tongue!',
     'S': 'Focus on the "S" sound - Like a snake hissing!',
@@ -47,6 +50,9 @@ class _AiSoundPageState extends State<AiSoundPage> {
 
   // Index of the letter box (words) or word (sentences) that is lit up.
   int highlightedUnit = -1;
+
+  // True while the whole word is being said, so every letter box is lit.
+  bool isWholeWordLit = false;
   Color highlightColor = PracticeColors.listen;
 
   // Bumped whenever the item changes, so an old highlight run stops.
@@ -101,7 +107,8 @@ class _AiSoundPageState extends State<AiSoundPage> {
     if (!mounted) return;
 
     setState(() {
-      exercises = result.exercises;
+      // Words like "THE" or "A" have no picture and sound wrong said alone.
+      exercises = result.exercises.where((e) => !_notPracticeWords.contains(e.word)).toList();
       isLoading = false;
     });
 
@@ -121,6 +128,7 @@ class _AiSoundPageState extends State<AiSoundPage> {
     SpeechService.instance.stop();
     _highlightRun++;
     highlightedUnit = -1;
+    isWholeWordLit = false;
     isPlaying = false;
     isListening = false;
   }
@@ -170,31 +178,43 @@ class _AiSoundPageState extends State<AiSoundPage> {
         }),
       );
     } else {
-      // The voice says the whole word slowly while the letter boxes light up
-      // one by one, so the child sees where the target sound is.
-      await Future.wait([
-        SpeechService.instance.speak(text, slow: true),
-        _lightLetters(run),
-      ]);
+      // Spell it box by box (R - E - D), then say the whole word (RED).
+      await _spellThenSay(text, run);
     }
 
     if (!mounted || run != _highlightRun) return;
     setState(() {
       highlightedUnit = -1;
+      isWholeWordLit = false;
       isPlaying = false;
     });
   }
 
-  /// Lights each letter box in turn while the word is being said.
-  Future<void> _lightLetters(int run) async {
+  /// Says each letter box in turn while it is lit, then the whole word slowly
+  /// with every box lit. The voice can only say letter names ("ar", "ee",
+  /// "dee"), so a box like TH is spelt as its two letters.
+  Future<void> _spellThenSay(String word, int run) async {
+    bool stillHere() => mounted && run == _highlightRun;
     final units = currentUnits;
+
     for (var i = 0; i < units.length; i++) {
-      if (!mounted || run != _highlightRun) return;
+      if (!stillHere()) return;
       setState(() {
         highlightedUnit = i;
       });
-      await Future.delayed(const Duration(milliseconds: 330));
+      await SpeechService.instance.speak(units[i].split('').join(' '));
+      if (!stillHere()) return;
+      await Future.delayed(const Duration(milliseconds: 250));
     }
+
+    if (!stillHere()) return;
+    setState(() {
+      highlightedUnit = -1;
+      isWholeWordLit = true;
+    });
+    await Future.delayed(const Duration(milliseconds: 300));
+    if (!stillHere()) return;
+    await SpeechService.instance.speak(word, slow: true);
   }
 
   @override
@@ -403,7 +423,7 @@ class _AiSoundPageState extends State<AiSoundPage> {
                         target: widget.sound,
                         size: 24,
                       )
-                    : _buildLetterBox(units[i], i == highlightedUnit, units.length),
+                    : _buildLetterBox(units[i], isWholeWordLit || i == highlightedUnit, units.length),
             ],
           ),
           const SizedBox(height: 16),
