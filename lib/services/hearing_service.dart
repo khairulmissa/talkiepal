@@ -29,16 +29,35 @@ abstract class HearingService {
 }
 
 /// Uses the phone's own speech recognition (Google on Android). Free.
+///
+/// Android's recogniser sometimes stops on its own while the child is still
+/// holding the button: a late "busy" or "client" error left over from an
+/// earlier listen, or a short silence. While the button is held it is
+/// simply started again, so whatever the child says before letting go is
+/// still heard.
 class PhoneHearingService implements HearingService {
   final SpeechToText _speech = SpeechToText();
   Future<bool>? _setUp;
 
-  // The listen that is going on now. Events from an earlier listen that
-  // arrive late must not end it.
+  // True from start() until finish()/stop(): the child is holding the button.
+  bool _wanted = false;
+  int _restarts = 0;
+  static const int _maxRestarts = 5;
+
+  // The listen going on now, and whether it has really started.
   Completer<void>? _session;
   Completer<void>? _ready;
   bool _hasStarted = false;
+  bool _gotFinalWords = false;
   List<String> _heard = [];
+
+  // Errors that will not get better by trying again.
+  static const Set<String> _hardErrors = {
+    'error_permission',
+    'error_insufficient_permissions',
+    'error_language_not_supported',
+    'error_language_unavailable',
+  };
 
   @override
   Future<bool> isAvailable() {
@@ -53,18 +72,18 @@ class PhoneHearingService implements HearingService {
   }
 
   void _onStatus(String status) {
-    debugPrint('[STT] status: $status');
+    debugPrint('[STT] status: $status (holding: $_wanted)');
     if (status == SpeechToText.listeningStatus) {
       _markStarted();
     } else if ((status == SpeechToText.doneStatus || status == SpeechToText.notListeningStatus) && _hasStarted) {
-      // Only end the listen once it has really started.
-      _endSession();
+      _listenEnded();
     }
   }
 
   void _onError(String message) {
-    debugPrint('[STT] error: $message');
-    _endSession();
+    debugPrint('[STT] error: $message (holding: $_wanted)');
+    if (_hardErrors.contains(message)) _restarts = _maxRestarts;
+    _listenEnded();
   }
 
   void _markStarted() {
@@ -73,7 +92,24 @@ class PhoneHearingService implements HearingService {
     if (ready != null && !ready.isCompleted) ready.complete();
   }
 
-  void _endSession() {
+  /// The phone stopped listening. If the child is still holding the button,
+  /// listen again; otherwise this listen is over.
+  void _listenEnded() {
+    if (_wanted && !_gotFinalWords && _restarts < _maxRestarts) {
+      _restarts++;
+      debugPrint('[STT] stopped early, listening again ($_restarts)');
+      final restartFor = _session;
+      Future.delayed(const Duration(milliseconds: 300), () async {
+        if (!_wanted || _session != restartFor) return;
+        if (_speech.isListening) await _speech.cancel();
+        await _beginListen(keepHeard: true);
+      });
+      return;
+    }
+    _completeSession();
+  }
+
+  void _completeSession() {
     final session = _session;
     if (session != null && !session.isCompleted) session.complete();
     // Wake up anyone still waiting for "ready".
@@ -85,29 +121,27 @@ class PhoneHearingService implements HearingService {
   Future<void> start({void Function()? onReady}) async {
     if (!await isAvailable()) return;
 
-    // Make sure the last listen is fully finished first; the phone says
-    // "busy" if a new one starts too soon.
+    // Make sure the last listen is fully finished first.
     if (_speech.isListening) await _speech.cancel();
 
-    for (var attempt = 0; attempt < 2; attempt++) {
-      await _beginListen();
-      await _ready!.future.timeout(const Duration(milliseconds: 1500), onTimeout: () {});
-      if (_hasStarted) {
-        onReady?.call();
-        return;
-      }
-      // The phone was not ready yet; try once more.
-      debugPrint('[STT] did not start, trying again');
-      await _speech.cancel();
-      await Future.delayed(const Duration(milliseconds: 400));
-    }
+    _wanted = true;
+    _restarts = 0;
+    _heard = [];
+    await _beginListen(keepHeard: false);
+
+    // Tell the child to talk once the phone is really listening (or after
+    // a moment, so the button never stays on "get ready").
+    await _ready!.future.timeout(const Duration(milliseconds: 1500), onTimeout: () {});
+    if (_wanted) onReady?.call();
   }
 
-  Future<void> _beginListen() async {
-    _heard = [];
+  Future<void> _beginListen({required bool keepHeard}) async {
+    if (!keepHeard) _heard = [];
     _hasStarted = false;
+    _gotFinalWords = false;
     _session = Completer<void>();
-    _ready = Completer<void>();
+    _ready ??= Completer<void>();
+    if (_ready!.isCompleted && !keepHeard) _ready = Completer<void>();
 
     try {
       await _speech.listen(
@@ -119,7 +153,10 @@ class PhoneHearingService implements HearingService {
             for (final alt in result.alternates) alt.recognizedWords,
           ].where((w) => w.trim().isNotEmpty).toSet().toList();
           if (words.isNotEmpty) _heard = words;
-          if (result.finalResult) _endSession();
+          if (result.finalResult && words.isNotEmpty) {
+            _gotFinalWords = true;
+            _completeSession();
+          }
         },
         listenOptions: SpeechListenOptions(
           // The child decides when to stop by letting go of the button.
@@ -133,30 +170,36 @@ class PhoneHearingService implements HearingService {
       );
     } catch (e) {
       debugPrint('[STT] could not start: $e');
-      _endSession();
+      _listenEnded();
     }
   }
 
   @override
   Future<List<String>> finish() async {
-    final session = _session;
-    if (session == null) return const [];
+    if (_session == null) return const [];
 
     // Keep listening a little after the button is let go.
     await Future.delayed(const Duration(milliseconds: 700));
+    _wanted = false;
     if (_speech.isListening) await _speech.stop();
 
     // Wait for the phone's final answer, but not for ever.
-    await session.future.timeout(const Duration(seconds: 3), onTimeout: () {});
+    final session = _session;
+    if (session != null) {
+      await session.future.timeout(const Duration(seconds: 3), onTimeout: () {});
+    }
     _session = null;
-    debugPrint('[STT] heard $_heard');
+    _ready = null;
+    debugPrint('[STT] heard $_heard (restarted $_restarts times)');
     return _heard;
   }
 
   @override
   Future<void> stop() async {
+    _wanted = false;
+    _completeSession();
     _session = null;
-    _endSession();
-    await _speech.cancel();
+    _ready = null;
+    if (_speech.isListening) await _speech.cancel();
   }
 }
