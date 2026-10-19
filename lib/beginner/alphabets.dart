@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:talkiepal/game_page.dart';
 import 'package:talkiepal/profile_page.dart';
 import 'package:talkiepal/practice/widgets/practice_scaffold.dart';
-import 'package:talkiepal/practice/widgets/success_dialog.dart';
+import 'package:talkiepal/practice/speak_check.dart';
+import 'package:talkiepal/practice/widgets/score_dialog.dart';
 import 'package:talkiepal/services/speech_service.dart';
 import 'package:talkiepal/widgets/kids_bottom_nav.dart';
 import 'package:talkiepal/progress_page.dart';
@@ -14,8 +15,7 @@ class PracticeAlphabetsPage extends StatefulWidget {
   State<PracticeAlphabetsPage> createState() => _PracticeAlphabetsPageState();
 }
 
-class _PracticeAlphabetsPageState extends State<PracticeAlphabetsPage> {
-  bool isListening = false;
+class _PracticeAlphabetsPageState extends State<PracticeAlphabetsPage> with HoldToSpeak {
   bool isPlaying = false;
   int currentIndex = 0;
 
@@ -87,7 +87,7 @@ class _PracticeAlphabetsPageState extends State<PracticeAlphabetsPage> {
     if (currentIndex + 1 < exercises.length) {
       setState(() {
         currentIndex++;
-        isListening = false;
+        cancelSpeaking();
         isPlaying = false;
       });
     } else {
@@ -102,12 +102,14 @@ class _PracticeAlphabetsPageState extends State<PracticeAlphabetsPage> {
     }
   }
 
-  void _showResultDialog(BuildContext context, {required bool isSuccess}) {
-    bool isLastExercise = currentIndex == exercises.length - 1;
+  void _showResultDialog(SpeechCheck check) {
+    final bool isLastExercise = currentIndex == exercises.length - 1;
 
-    showSuccessDialog(
+    showScoreDialog(
       context,
-      detail: 'You said "${currentExercise['letter']}"!',
+      score: check.score,
+      target: currentExercise['letter']!,
+      heard: check.heard,
       nextLabel: isLastExercise ? 'FINISH →' : 'NEXT LETTER →',
       onNext: _goToNextExercise,
     );
@@ -135,20 +137,14 @@ class _PracticeAlphabetsPageState extends State<PracticeAlphabetsPage> {
     super.dispose();
   }
 
-  Future<void> _onSpeak() async {
-    if (isPlaying || isListening) return;
-    setState(() {
-      isListening = true;
-    });
+  @override
+  String get speakTarget => currentExercise['letter']!;
 
-    // Speech checking is not connected yet, so this always passes.
-    await Future.delayed(const Duration(seconds: 2));
-    if (!mounted) return;
-    setState(() {
-      isListening = false;
-    });
-    _showResultDialog(context, isSuccess: true);
-  }
+  @override
+  bool get speakBlocked => isPlaying;
+
+  @override
+  void onSpeechChecked(SpeechCheck check) => _showResultDialog(check);
 
   @override
   Widget build(BuildContext context) {
@@ -157,7 +153,7 @@ class _PracticeAlphabetsPageState extends State<PracticeAlphabetsPage> {
       title: 'Alphabets 🔤',
       current: currentIndex + 1,
       total: exercises.length,
-      dinoTip: 'Look at the picture, listen, then say the letter!',
+      dinoTip: 'Listen, then hold SPEAK and say the letter!',
       onNavTap: _onNavTap,
       children: [
         PracticeCard(
@@ -194,9 +190,11 @@ class _PracticeAlphabetsPageState extends State<PracticeAlphabetsPage> {
         const SizedBox(height: 22),
         ListenSpeakButtons(
           onListen: _onListen,
-          onSpeak: _onSpeak,
+          onSpeakDown: onSpeakDown,
+          onSpeakUp: onSpeakUp,
           isPlaying: isPlaying,
           isListening: isListening,
+          isMicReady: isMicReady,
         ),
       ],
     );

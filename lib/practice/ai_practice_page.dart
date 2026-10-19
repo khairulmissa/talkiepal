@@ -4,7 +4,8 @@ import 'package:talkiepal/profile_page.dart';
 import 'package:talkiepal/services/exercise_service.dart';
 import 'package:talkiepal/services/speech_service.dart';
 import 'package:talkiepal/practice/widgets/practice_scaffold.dart';
-import 'package:talkiepal/practice/widgets/success_dialog.dart';
+import 'package:talkiepal/practice/speak_check.dart';
+import 'package:talkiepal/practice/widgets/score_dialog.dart';
 import 'package:talkiepal/widgets/kids_bottom_nav.dart';
 import 'package:talkiepal/progress_page.dart';
 
@@ -30,9 +31,8 @@ class AiPracticePage extends StatefulWidget {
   State<AiPracticePage> createState() => _AiPracticePageState();
 }
 
-class _AiPracticePageState extends State<AiPracticePage> {
+class _AiPracticePageState extends State<AiPracticePage> with HoldToSpeak {
   bool isLoading = true;
-  bool isListening = false;
   bool isPlaying = false;
   int currentIndex = 0;
 
@@ -96,34 +96,12 @@ class _AiPracticePageState extends State<AiPracticePage> {
 
   List<String> get currentWords => currentExercise.word.split(' ');
 
-  /// Lights up each word of the current exercise one by one.
-  /// Returns false if it was stopped because the exercise changed.
-  Future<bool> _highlightWords(Color color, Duration perWord) async {
-    final run = ++_highlightRun;
-    final words = currentWords;
-
-    for (var i = 0; i < words.length; i++) {
-      if (!mounted || run != _highlightRun) return false;
-      setState(() {
-        highlightColor = color;
-        highlightedWord = i;
-      });
-      await Future.delayed(perWord);
-    }
-
-    if (!mounted || run != _highlightRun) return false;
-    setState(() {
-      highlightedWord = -1;
-    });
-    return true;
-  }
-
   // Call inside setState.
   void _stopHighlight() {
     SpeechService.instance.stop();
     _highlightRun++;
     highlightedWord = -1;
-    isListening = false;
+    cancelSpeaking();
     isPlaying = false;
   }
 
@@ -157,21 +135,14 @@ class _AiPracticePageState extends State<AiPracticePage> {
     super.dispose();
   }
 
-  Future<void> _onSpeak() async {
-    if (isPlaying || isListening) return;
-    setState(() {
-      isListening = true;
-    });
+  @override
+  String get speakTarget => currentExercise.word;
 
-    // Speech checking is not connected yet, so this always passes.
-    final finished = await _highlightWords(PracticeColors.speak, const Duration(milliseconds: 900));
+  @override
+  bool get speakBlocked => isPlaying;
 
-    if (!mounted || !finished) return;
-    setState(() {
-      isListening = false;
-    });
-    _showResultDialog();
-  }
+  @override
+  void onSpeechChecked(SpeechCheck check) => _showResultDialog(check);
 
   void _goToNextExercise() {
     if (currentIndex + 1 < exercises.length) {
@@ -184,12 +155,14 @@ class _AiPracticePageState extends State<AiPracticePage> {
     }
   }
 
-  void _showResultDialog() {
+  void _showResultDialog(SpeechCheck check) {
     final bool isLastExercise = currentIndex == exercises.length - 1;
 
-    showSuccessDialog(
+    showScoreDialog(
       context,
-      detail: 'You said "${currentExercise.word}"!',
+      score: check.score,
+      target: currentExercise.word,
+      heard: check.heard,
       nextLabel: isLastExercise ? 'FINISH →' : 'NEXT →',
       onNext: _goToNextExercise,
     );
@@ -198,8 +171,8 @@ class _AiPracticePageState extends State<AiPracticePage> {
   PracticeLook get _look => PracticeLook.forLevel(widget.level);
 
   String get _dinoTip => widget.level == 'beginner'
-      ? 'Listen, then say the word with me!'
-      : 'Listen to each word, then say the whole sentence!';
+      ? 'Listen, then hold SPEAK and say the word!'
+      : 'Listen to each word, then hold SPEAK and say the sentence!';
 
   @override
   Widget build(BuildContext context) {
@@ -242,9 +215,11 @@ class _AiPracticePageState extends State<AiPracticePage> {
         const SizedBox(height: 22),
         ListenSpeakButtons(
           onListen: _onListen,
-          onSpeak: _onSpeak,
+          onSpeakDown: onSpeakDown,
+          onSpeakUp: onSpeakUp,
           isPlaying: isPlaying,
           isListening: isListening,
+          isMicReady: isMicReady,
         ),
       ],
     );

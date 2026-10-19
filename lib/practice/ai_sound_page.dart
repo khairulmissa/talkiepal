@@ -4,7 +4,8 @@ import 'package:talkiepal/profile_page.dart';
 import 'package:talkiepal/services/exercise_service.dart';
 import 'package:talkiepal/services/speech_service.dart';
 import 'package:talkiepal/practice/widgets/practice_scaffold.dart';
-import 'package:talkiepal/practice/widgets/success_dialog.dart';
+import 'package:talkiepal/practice/speak_check.dart';
+import 'package:talkiepal/practice/widgets/score_dialog.dart';
 import 'package:talkiepal/widgets/kids_bottom_nav.dart';
 import 'package:talkiepal/progress_page.dart';
 
@@ -27,7 +28,7 @@ class AiSoundPage extends StatefulWidget {
   State<AiSoundPage> createState() => _AiSoundPageState();
 }
 
-class _AiSoundPageState extends State<AiSoundPage> {
+class _AiSoundPageState extends State<AiSoundPage> with HoldToSpeak {
   // Words that are not good practice words on their own.
   static const Set<String> _notPracticeWords = {'THE', 'A', 'AN'};
 
@@ -44,7 +45,6 @@ class _AiSoundPageState extends State<AiSoundPage> {
 
   bool isLoading = true;
   bool isPlaying = false;
-  bool isListening = false;
   int currentIndex = 0;
   List<PracticeExercise> exercises = [];
 
@@ -130,32 +130,8 @@ class _AiSoundPageState extends State<AiSoundPage> {
     highlightedUnit = -1;
     isWholeWordLit = false;
     isPlaying = false;
-    isListening = false;
+    cancelSpeaking();
   }
-
-  /// Lights up each unit one by one.
-  /// Returns false if it was stopped because the item changed.
-  Future<bool> _highlightUnits(Color color, Duration perUnit) async {
-    final run = ++_highlightRun;
-    final units = currentUnits;
-
-    for (var i = 0; i < units.length; i++) {
-      if (!mounted || run != _highlightRun) return false;
-      setState(() {
-        highlightColor = color;
-        highlightedUnit = i;
-      });
-      await Future.delayed(perUnit);
-    }
-
-    if (!mounted || run != _highlightRun) return false;
-    setState(() {
-      highlightedUnit = -1;
-    });
-    return true;
-  }
-
-  Duration get _pace => Duration(milliseconds: widget.isSentence ? 600 : 500);
 
   Future<void> _onListen() async {
     if (isPlaying || isListening) return;
@@ -223,29 +199,14 @@ class _AiSoundPageState extends State<AiSoundPage> {
     super.dispose();
   }
 
-  Future<void> _onSpeak() async {
-    if (isPlaying || isListening) return;
-    setState(() {
-      isListening = true;
-    });
+  @override
+  String get speakTarget => currentExercise.word;
 
-    final finished = await _highlightUnits(PracticeColors.speak, _pace);
-    if (!mounted || !finished) return;
+  @override
+  bool get speakBlocked => isPlaying;
 
-    final score = await _checkPronunciation();
-    if (!mounted) return;
-
-    setState(() {
-      isListening = false;
-    });
-    _showResultDialog(score);
-  }
-
-  /// How close the child's pronunciation was, from 0 to 100.
-  /// Speech-to-text is not connected yet, so this always returns 100.
-  Future<int> _checkPronunciation() async {
-    return 100;
-  }
+  @override
+  void onSpeechChecked(SpeechCheck check) => _showResultDialog(check);
 
   void _finish() {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -269,103 +230,16 @@ class _AiSoundPageState extends State<AiSoundPage> {
     }
   }
 
-  void _showResultDialog(int score) {
-    if (score >= 100) {
-      final bool isLast = currentIndex == exercises.length - 1;
+  void _showResultDialog(SpeechCheck check) {
+    final bool isLast = currentIndex == exercises.length - 1;
 
-      showSuccessDialog(
-        context,
-        detail: 'You scored $score%!',
-        nextLabel: isLast ? 'FINISH →' : 'NEXT →',
-        onNext: _goToNext,
-      );
-      return;
-    }
-
-    const Color mainColor = Color(0xFFFF6B6B);
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext dialogContext) {
-        return Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(25),
-          ),
-          child: Container(
-            padding: const EdgeInsets.all(25),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFFFFB6B6), mainColor],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(25),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  '❌ OOPS! ❌',
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  '$score%',
-                  style: const TextStyle(
-                    fontSize: 40,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                const Text(
-                  'Almost there! Listen again and repeat!',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 16, color: Colors.white),
-                ),
-                const SizedBox(height: 20),
-                _buildDialogButton(
-                  label: 'TRY AGAIN',
-                  color: mainColor,
-                  onTap: () => Navigator.pop(dialogContext),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildDialogButton({
-    required String label,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(30),
-        ),
-        child: Center(
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
-          ),
-        ),
-      ),
+    showScoreDialog(
+      context,
+      score: check.score,
+      target: currentExercise.word,
+      heard: check.heard,
+      nextLabel: isLast ? 'FINISH →' : 'NEXT →',
+      onNext: _goToNext,
     );
   }
 
@@ -392,9 +266,11 @@ class _AiSoundPageState extends State<AiSoundPage> {
               const SizedBox(height: 22),
               ListenSpeakButtons(
                 onListen: _onListen,
-                onSpeak: _onSpeak,
+                onSpeakDown: onSpeakDown,
+                onSpeakUp: onSpeakUp,
                 isPlaying: isPlaying,
                 isListening: isListening,
+                isMicReady: isMicReady,
               ),
             ],
     );

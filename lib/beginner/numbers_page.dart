@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:talkiepal/game_page.dart';
 import 'package:talkiepal/profile_page.dart';
 import 'package:talkiepal/practice/widgets/practice_scaffold.dart';
-import 'package:talkiepal/practice/widgets/success_dialog.dart';
+import 'package:talkiepal/practice/speak_check.dart';
+import 'package:talkiepal/practice/widgets/score_dialog.dart';
 import 'package:talkiepal/services/speech_service.dart';
 import 'package:talkiepal/widgets/kids_bottom_nav.dart';
 import 'package:talkiepal/progress_page.dart';
@@ -14,8 +15,7 @@ class PracticeNumbers1To10Page extends StatefulWidget {
   State<PracticeNumbers1To10Page> createState() => _PracticeNumbers1To10PageState();
 }
 
-class _PracticeNumbers1To10PageState extends State<PracticeNumbers1To10Page> {
-  bool isListening = false;
+class _PracticeNumbers1To10PageState extends State<PracticeNumbers1To10Page> with HoldToSpeak {
   bool isPlaying = false;
   int currentIndex = 0;
 
@@ -41,7 +41,7 @@ class _PracticeNumbers1To10PageState extends State<PracticeNumbers1To10Page> {
     if (currentIndex + 1 < exercises.length) {
       setState(() {
         currentIndex++;
-        isListening = false;
+        cancelSpeaking();
         isPlaying = false;
       });
     } else {
@@ -56,12 +56,14 @@ class _PracticeNumbers1To10PageState extends State<PracticeNumbers1To10Page> {
     }
   }
 
-  void _showResultDialog(BuildContext context, {required bool isSuccess}) {
-    bool isLastExercise = currentIndex == exercises.length - 1;
+  void _showResultDialog(SpeechCheck check) {
+    final bool isLastExercise = currentIndex == exercises.length - 1;
 
-    showSuccessDialog(
+    showScoreDialog(
       context,
-      detail: 'You said "${currentExercise['word']}"!',
+      score: check.score,
+      target: currentExercise['word']!,
+      heard: check.heard,
       nextLabel: isLastExercise ? 'FINISH →' : 'NEXT NUMBER →',
       onNext: _goToNextExercise,
     );
@@ -89,20 +91,14 @@ class _PracticeNumbers1To10PageState extends State<PracticeNumbers1To10Page> {
     super.dispose();
   }
 
-  Future<void> _onSpeak() async {
-    if (isPlaying || isListening) return;
-    setState(() {
-      isListening = true;
-    });
+  @override
+  String get speakTarget => currentExercise['word']!;
 
-    // Speech checking is not connected yet, so this always passes.
-    await Future.delayed(const Duration(seconds: 2));
-    if (!mounted) return;
-    setState(() {
-      isListening = false;
-    });
-    _showResultDialog(context, isSuccess: true);
-  }
+  @override
+  bool get speakBlocked => isPlaying;
+
+  @override
+  void onSpeechChecked(SpeechCheck check) => _showResultDialog(check);
 
   @override
   Widget build(BuildContext context) {
@@ -111,7 +107,7 @@ class _PracticeNumbers1To10PageState extends State<PracticeNumbers1To10Page> {
       title: 'Numbers 🔢',
       current: currentIndex + 1,
       total: exercises.length,
-      dinoTip: 'Count with me, then say the number!',
+      dinoTip: 'Count with me, then hold SPEAK and say the number!',
       onNavTap: _onNavTap,
       children: [
         PracticeCard(
@@ -148,9 +144,11 @@ class _PracticeNumbers1To10PageState extends State<PracticeNumbers1To10Page> {
         const SizedBox(height: 22),
         ListenSpeakButtons(
           onListen: _onListen,
-          onSpeak: _onSpeak,
+          onSpeakDown: onSpeakDown,
+          onSpeakUp: onSpeakUp,
           isPlaying: isPlaying,
           isListening: isListening,
+          isMicReady: isMicReady,
         ),
       ],
     );
