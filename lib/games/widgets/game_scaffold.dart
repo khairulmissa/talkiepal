@@ -18,6 +18,8 @@ class GameLook {
       Color(0xFF43A047), Color(0xFF2E7D32), Color(0xFFE8F5E9), Color(0xFFA5D6A7), Color(0xFF8BD17C));
   static const minimalPairs = GameLook(
       Color(0xFFD81B60), Color(0xFFAD1457), Color(0xFFFFE0E6), Color(0xFFF48FB1), Color(0xFFE77BC3));
+  static const popBalloon = GameLook(
+      Color(0xFF00897B), Color(0xFF00695C), Color(0xFFE0F7FA), Color(0xFF80DEEA), Color(0xFF4DB6AC));
   static const feedDino = GameLook(
       Color(0xFFF57C00), Color(0xFFE65100), Color(0xFFFFF3D6), Color(0xFFFFCC80), Color(0xFFFFA569));
 }
@@ -67,7 +69,7 @@ class GameScaffold extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
               child: Column(
                 children: [
-                  _buildHeader(context),
+                  GameHeader(look: look, title: title, stars: stars),
                   const SizedBox(height: 14),
                   if (!isLoading && total > 0) ...[
                     _buildProgress(),
@@ -92,48 +94,6 @@ class GameScaffold extends StatelessWidget {
       width: size,
       height: size,
       decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-    );
-  }
-
-  Widget _buildHeader(BuildContext context) {
-    return Row(
-      children: [
-        GestureDetector(
-          onTap: () => Navigator.pop(context),
-          child: Container(
-            width: 46,
-            height: 46,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              shape: BoxShape.circle,
-              border: Border.all(color: look.color, width: 2.5),
-              boxShadow: [BoxShadow(color: look.edgeColor, offset: const Offset(0, 3))],
-            ),
-            child: Icon(Icons.arrow_back_rounded, color: look.color),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(fontSize: 21, fontWeight: FontWeight.w900, color: look.color),
-          ),
-        ),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [BoxShadow(color: look.edgeColor, offset: const Offset(0, 3))],
-          ),
-          child: Text(
-            '⭐ $stars',
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: PracticeColors.ink),
-          ),
-        ),
-      ],
     );
   }
 
@@ -214,6 +174,58 @@ class GameScaffold extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Back button, game title and the star count.
+class GameHeader extends StatelessWidget {
+  final GameLook look;
+  final String title;
+  final int stars;
+
+  const GameHeader({super.key, required this.look, required this.title, required this.stars});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        GestureDetector(
+          onTap: () => Navigator.pop(context),
+          child: Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              border: Border.all(color: look.color, width: 2.5),
+              boxShadow: [BoxShadow(color: look.edgeColor, offset: const Offset(0, 3))],
+            ),
+            child: Icon(Icons.arrow_back_rounded, color: look.color),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 21, fontWeight: FontWeight.w900, color: look.color),
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [BoxShadow(color: look.edgeColor, offset: const Offset(0, 3))],
+          ),
+          child: Text(
+            '⭐ $stars',
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: PracticeColors.ink),
+          ),
+        ),
+      ],
     );
   }
 }
