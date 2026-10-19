@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:talkiepal/games/food_words.dart';
 import 'package:talkiepal/games/game_words.dart';
 import 'package:talkiepal/games/widgets/game_scaffold.dart';
 import 'package:talkiepal/practice/widgets/practice_scaffold.dart';
@@ -73,7 +74,8 @@ class _FeedDinoGameState extends State<FeedDinoGame> {
     if (!mounted) return;
 
     setState(() {
-      rounds = _buildRounds(result.words);
+      // Only real food words, each with its own picture.
+      rounds = _buildRounds(FoodWords.pick(result.words, widget.rounds, _random));
       isLoading = false;
     });
 
