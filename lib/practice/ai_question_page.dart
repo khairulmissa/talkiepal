@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:talkiepal/game_page.dart';
 import 'package:talkiepal/profile_page.dart';
 import 'package:talkiepal/services/question_service.dart';
+import 'package:talkiepal/services/speech_service.dart';
 import 'package:talkiepal/practice/widgets/practice_scaffold.dart';
 import 'package:talkiepal/practice/widgets/success_dialog.dart';
 import 'package:talkiepal/widgets/kids_bottom_nav.dart';
@@ -81,6 +82,7 @@ class _AiQuestionPageState extends State<AiQuestionPage> {
 
   // Call inside setState.
   void _stopHighlight() {
+    SpeechService.instance.stop();
     _highlightRun++;
     highlightedWord = -1;
     highlightedOption = -1;
@@ -88,28 +90,46 @@ class _AiQuestionPageState extends State<AiQuestionPage> {
     isPlaying = false;
   }
 
-  /// Lights up the question word by word, then each answer.
+  /// Reads the question aloud word by word, then each answer.
   /// Returns false if it was stopped because the question changed.
   Future<bool> _playHighlight() async {
     final run = ++_highlightRun;
+    bool stillHere() => mounted && run == _highlightRun;
 
-    Future<bool> step(int word, int option, Duration wait) async {
-      if (!mounted || run != _highlightRun) return false;
-      setState(() {
-        highlightedWord = word;
-        highlightedOption = option;
-      });
-      await Future.delayed(wait);
-      return mounted && run == _highlightRun;
-    }
+    // The question, each word lit as it is spoken.
+    await SpeechService.instance.speak(
+      currentQuestion.question,
+      onWord: (i) {
+        if (!stillHere()) return;
+        setState(() {
+          highlightedWord = i;
+          highlightedOption = -1;
+        });
+      },
+    );
 
-    for (var i = 0; i < questionWords.length; i++) {
-      if (!await step(i, -1, const Duration(milliseconds: 500))) return false;
-    }
+    // Then each answer: A..., B..., C...
     for (var i = 0; i < currentQuestion.options.length; i++) {
-      if (!await step(-1, i, const Duration(milliseconds: 1500))) return false;
+      if (!stillHere()) return false;
+      setState(() {
+        highlightedWord = -1;
+        highlightedOption = i;
+      });
+      await SpeechService.instance.speak('${String.fromCharCode(65 + i)}. ${currentQuestion.options[i]}');
     }
-    return step(-1, -1, Duration.zero);
+
+    if (!stillHere()) return false;
+    setState(() {
+      highlightedWord = -1;
+      highlightedOption = -1;
+    });
+    return true;
+  }
+
+  @override
+  void dispose() {
+    SpeechService.instance.stop();
+    super.dispose();
   }
 
   Future<void> _onListen() async {
@@ -118,7 +138,6 @@ class _AiQuestionPageState extends State<AiQuestionPage> {
       isPlaying = true;
     });
 
-    // Audio is not connected yet; the highlight shows the reading pace.
     final finished = await _playHighlight();
 
     if (!mounted || !finished) return;
@@ -129,6 +148,7 @@ class _AiQuestionPageState extends State<AiQuestionPage> {
 
   void _onOptionTap(int i) {
     if (isPlaying) return;
+    SpeechService.instance.stop();
 
     if (i == currentQuestion.correctIndex) {
       setState(() {

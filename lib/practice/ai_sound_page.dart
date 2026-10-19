@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:talkiepal/game_page.dart';
 import 'package:talkiepal/profile_page.dart';
 import 'package:talkiepal/services/exercise_service.dart';
+import 'package:talkiepal/services/speech_service.dart';
 import 'package:talkiepal/practice/widgets/practice_scaffold.dart';
 import 'package:talkiepal/practice/widgets/success_dialog.dart';
 import 'package:talkiepal/widgets/kids_bottom_nav.dart';
@@ -117,6 +118,7 @@ class _AiSoundPageState extends State<AiSoundPage> {
 
   // Call inside setState.
   void _stopHighlight() {
+    SpeechService.instance.stop();
     _highlightRun++;
     highlightedUnit = -1;
     isPlaying = false;
@@ -149,17 +151,54 @@ class _AiSoundPageState extends State<AiSoundPage> {
 
   Future<void> _onListen() async {
     if (isPlaying || isListening) return;
+    final run = ++_highlightRun;
     setState(() {
       isPlaying = true;
+      highlightColor = PracticeColors.listen;
     });
 
-    // Audio is not connected yet; the highlight shows the reading pace.
-    final finished = await _highlightUnits(PracticeColors.listen, _pace);
+    final text = toSpoken(currentExercise.word);
 
-    if (!mounted || !finished) return;
+    if (widget.isSentence) {
+      // Slowly, each word lit as it is spoken, so the target sound is clear.
+      await SpeechService.instance.speak(text, slow: true, onWord: (i) {
+        if (!mounted || run != _highlightRun) return;
+        setState(() {
+          highlightedUnit = i;
+        });
+      });
+    } else {
+      // The voice says the whole word slowly while the letter boxes light up
+      // one by one, so the child sees where the target sound is.
+      await Future.wait([
+        SpeechService.instance.speak(text, slow: true),
+        _lightLetters(run),
+      ]);
+    }
+
+    if (!mounted || run != _highlightRun) return;
     setState(() {
+      highlightedUnit = -1;
       isPlaying = false;
     });
+  }
+
+  /// Lights each letter box in turn while the word is being said.
+  Future<void> _lightLetters(int run) async {
+    final units = currentUnits;
+    for (var i = 0; i < units.length; i++) {
+      if (!mounted || run != _highlightRun) return;
+      setState(() {
+        highlightedUnit = i;
+      });
+      await Future.delayed(const Duration(milliseconds: 280));
+    }
+  }
+
+  @override
+  void dispose() {
+    SpeechService.instance.stop();
+    super.dispose();
   }
 
   Future<void> _onSpeak() async {
