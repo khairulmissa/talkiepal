@@ -160,13 +160,15 @@ class _AiSoundPageState extends State<AiSoundPage> {
     final text = toSpoken(currentExercise.word);
 
     if (widget.isSentence) {
-      // Slowly, each word lit as it is spoken, so the target sound is clear.
-      await SpeechService.instance.speak(text, slow: true, onWord: (i) {
-        if (!mounted || run != _highlightRun) return;
-        setState(() {
+      // Slowly, one word at a time, so the target sound is clear.
+      await speakWordByWord(
+        text,
+        slow: true,
+        keepGoing: () => mounted && run == _highlightRun,
+        onWord: (i) => setState(() {
           highlightedUnit = i;
-        });
-      });
+        }),
+      );
     } else {
       // The voice says the whole word slowly while the letter boxes light up
       // one by one, so the child sees where the target sound is.
@@ -191,7 +193,7 @@ class _AiSoundPageState extends State<AiSoundPage> {
       setState(() {
         highlightedUnit = i;
       });
-      await Future.delayed(const Duration(milliseconds: 280));
+      await Future.delayed(const Duration(milliseconds: 330));
     }
   }
 

@@ -135,15 +135,13 @@ class _AiPracticePageState extends State<AiPracticePage> {
       highlightColor = PracticeColors.listen;
     });
 
-    // Each word lights up as the voice says it.
-    await SpeechService.instance.speak(
+    // One word at a time, each lit as the voice says it.
+    await speakWordByWord(
       toSpoken(currentExercise.word),
-      onWord: (i) {
-        if (!mounted || run != _highlightRun) return;
-        setState(() {
-          highlightedWord = i;
-        });
-      },
+      keepGoing: () => mounted && run == _highlightRun,
+      onWord: (i) => setState(() {
+        highlightedWord = i;
+      }),
     );
 
     if (!mounted || run != _highlightRun) return;

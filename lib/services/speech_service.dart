@@ -21,9 +21,9 @@ class PhoneSpeechService implements SpeechService {
   final FlutterTts _tts = FlutterTts();
   Future<void>? _setUp;
 
-  // Normal speed is 0.5 on Android; a bit slower is clearer for children.
-  static const double _rate = 0.42;
-  static const double _slowRate = 0.32;
+  // Normal speed is 0.5 on Android; slower is clearer for children.
+  static const double _rate = 0.36;
+  static const double _slowRate = 0.30;
 
   // Bumped for every new sentence, so word events from an old one are ignored.
   int _run = 0;
@@ -79,6 +79,28 @@ class PhoneSpeechService implements SpeechService {
     _onWord = null;
     await _tts.stop();
   }
+}
+
+/// Says a sentence one word at a time, with a short pause after each word,
+/// so a child can follow along. [onWord] lights each word as it is said.
+/// Stops early (and returns false) as soon as [keepGoing] says no, e.g. when
+/// the child moves on.
+Future<bool> speakWordByWord(
+  String text, {
+  required bool Function() keepGoing,
+  void Function(int wordIndex)? onWord,
+  bool slow = false,
+}) async {
+  final words = text.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+
+  for (var i = 0; i < words.length; i++) {
+    if (!keepGoing()) return false;
+    onWord?.call(i);
+    await SpeechService.instance.speak(words[i], slow: slow);
+    if (!keepGoing()) return false;
+    await Future.delayed(const Duration(milliseconds: 280));
+  }
+  return keepGoing();
 }
 
 /// Turns a word written in capitals into something the voice reads as a word,

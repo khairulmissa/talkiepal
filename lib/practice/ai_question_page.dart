@@ -96,16 +96,14 @@ class _AiQuestionPageState extends State<AiQuestionPage> {
     final run = ++_highlightRun;
     bool stillHere() => mounted && run == _highlightRun;
 
-    // The question, each word lit as it is spoken.
-    await SpeechService.instance.speak(
+    // The question, one word at a time, each lit as it is spoken.
+    await speakWordByWord(
       currentQuestion.question,
-      onWord: (i) {
-        if (!stillHere()) return;
-        setState(() {
-          highlightedWord = i;
-          highlightedOption = -1;
-        });
-      },
+      keepGoing: stillHere,
+      onWord: (i) => setState(() {
+        highlightedWord = i;
+        highlightedOption = -1;
+      }),
     );
 
     // Then each answer: A..., B..., C...
@@ -116,6 +114,8 @@ class _AiQuestionPageState extends State<AiQuestionPage> {
         highlightedOption = i;
       });
       await SpeechService.instance.speak('${String.fromCharCode(65 + i)}. ${currentQuestion.options[i]}');
+      // A short pause between answers.
+      if (stillHere()) await Future.delayed(const Duration(milliseconds: 500));
     }
 
     if (!stillHere()) return false;
