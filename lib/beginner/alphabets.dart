@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:talkiepal/game_page.dart';
 import 'package:talkiepal/profile_page.dart';
 import 'package:talkiepal/practice/widgets/practice_scaffold.dart';
+import 'package:talkiepal/practice/practice_session.dart';
+import 'package:talkiepal/practice/result_page.dart';
 import 'package:talkiepal/practice/speak_check.dart';
 import 'package:talkiepal/practice/widgets/score_dialog.dart';
 import 'package:talkiepal/services/speech_service.dart';
@@ -9,7 +11,10 @@ import 'package:talkiepal/widgets/kids_bottom_nav.dart';
 import 'package:talkiepal/progress_page.dart';
 
 class PracticeAlphabetsPage extends StatefulWidget {
-  const PracticeAlphabetsPage({super.key});
+  /// Practise only these letters (e.g. the hard ones again); null for all.
+  final List<String>? only;
+
+  const PracticeAlphabetsPage({super.key, this.only});
 
   @override
   State<PracticeAlphabetsPage> createState() => _PracticeAlphabetsPageState();
@@ -20,7 +25,7 @@ class _PracticeAlphabetsPageState extends State<PracticeAlphabetsPage> with Hold
   int currentIndex = 0;
 
   // List of 26 exercises (A to Z)
-  final List<Map<String, String>> exercises = [
+  final List<Map<String, String>> _allExercises = [
     {'letter': 'A', 'focus': 'Alphabets', 'image': 'lib/assets/images/alphabets/A.png'},
     {'letter': 'B', 'focus': 'Alphabets', 'image': 'lib/assets/images/alphabets/B.png'},
     {'letter': 'C', 'focus': 'Alphabets', 'image': 'lib/assets/images/alphabets/C.png'},
@@ -79,6 +84,21 @@ class _PracticeAlphabetsPageState extends State<PracticeAlphabetsPage> with Hold
     'zee',
   ];
 
+  late final List<Map<String, String>> exercises = widget.only == null
+      ? _allExercises
+      : _allExercises.where((e) => widget.only!.contains(e['letter'])).toList();
+
+  // Scores and tries for the results screen.
+  late final PracticeSession session = PracticeSession();
+
+  @override
+  void initState() {
+    super.initState();
+    for (final e in exercises) {
+      session.addItem(e['letter']!, emoji: null);
+    }
+  }
+
   // Get current exercise
   Map<String, String> get currentExercise => exercises[currentIndex];
 
@@ -91,14 +111,18 @@ class _PracticeAlphabetsPageState extends State<PracticeAlphabetsPage> with Hold
         isPlaying = false;
       });
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('🎉 Congratulations! You completed all alphabets! 🎉'),
-          backgroundColor: Color(0xFFA8D5A2),
-          duration: Duration(seconds: 2),
+      // Show the results; "practise again" opens just the hard letters.
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ResultPage(
+            session: session,
+            look: PracticeLook.beginner,
+            title: 'Alphabets',
+            practiseAgain: (labels) => PracticeAlphabetsPage(only: labels),
+          ),
         ),
       );
-      Navigator.pop(context);
     }
   }
 
@@ -144,7 +168,10 @@ class _PracticeAlphabetsPageState extends State<PracticeAlphabetsPage> with Hold
   bool get speakBlocked => isPlaying;
 
   @override
-  void onSpeechChecked(SpeechCheck check) => _showResultDialog(check);
+  void onSpeechChecked(SpeechCheck check) {
+    session.recordScore(currentExercise['letter']!, check.score);
+    _showResultDialog(check);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -181,7 +208,7 @@ class _PracticeAlphabetsPageState extends State<PracticeAlphabetsPage> with Hold
               ),
               const SizedBox(height: 6),
               Text(
-                'say "${_letterNames[currentIndex]}"',
+                'say "${_letterNames[currentExercise['letter']!.codeUnitAt(0) - 65]}"',
                 style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: PracticeColors.soft),
               ),
             ],

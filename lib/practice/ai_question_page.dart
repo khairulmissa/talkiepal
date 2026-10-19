@@ -3,6 +3,8 @@ import 'package:talkiepal/game_page.dart';
 import 'package:talkiepal/profile_page.dart';
 import 'package:talkiepal/services/question_service.dart';
 import 'package:talkiepal/services/speech_service.dart';
+import 'package:talkiepal/practice/practice_session.dart';
+import 'package:talkiepal/practice/result_page.dart';
 import 'package:talkiepal/practice/widgets/practice_scaffold.dart';
 import 'package:talkiepal/practice/widgets/success_dialog.dart';
 import 'package:talkiepal/widgets/kids_bottom_nav.dart';
@@ -14,10 +16,14 @@ class AiQuestionPage extends StatefulWidget {
   final String topic;
   final int count;
 
+  /// Questions to practise instead of asking the AI (e.g. the hard ones again).
+  final List<PracticeQuestion>? initialQuestions;
+
   const AiQuestionPage({
     super.key,
     required this.topic,
     this.count = 10,
+    this.initialQuestions,
   });
 
   @override
@@ -29,6 +35,9 @@ class _AiQuestionPageState extends State<AiQuestionPage> {
   bool isPlaying = false;
   int currentIndex = 0;
   List<PracticeQuestion> questions = [];
+
+  // Right on the first try or not, for the results screen.
+  PracticeSession session = PracticeSession(isQuiz: true);
 
   // What is lit up during LISTEN (-1 = none).
   int highlightedWord = -1;
@@ -57,16 +66,20 @@ class _AiQuestionPageState extends State<AiQuestionPage> {
       _stopHighlight();
     });
 
-    final result = await QuestionService.getQuestions(
-      topic: widget.topic,
-      count: widget.count,
-    );
+    final given = widget.initialQuestions;
+    final result = given != null
+        ? QuestionResult(questions: given, isOffline: false)
+        : await QuestionService.getQuestions(topic: widget.topic, count: widget.count);
 
     if (!mounted) return;
 
     setState(() {
       questions = result.questions;
       isLoading = false;
+      session = PracticeSession(isQuiz: true);
+      for (final q in questions) {
+        session.addItem(q.question);
+      }
     });
 
     if (result.isOffline) {
@@ -150,7 +163,9 @@ class _AiQuestionPageState extends State<AiQuestionPage> {
     if (isPlaying) return;
     SpeechService.instance.stop();
 
-    if (i == currentQuestion.correctIndex) {
+    final correct = i == currentQuestion.correctIndex;
+    session.recordAnswer(currentQuestion.question, correct: correct);
+    if (correct) {
       setState(() {
         wrongOption = -1;
       });
@@ -215,14 +230,22 @@ class _AiQuestionPageState extends State<AiQuestionPage> {
   }
 
   void _finish() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('🎉 Congratulations! You completed all questions! 🎉'),
-        backgroundColor: Color(0xFFA8D5A2),
-        duration: Duration(seconds: 2),
+    final all = questions;
+    // Show the results; "practise again" asks just the hard questions.
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ResultPage(
+          session: session,
+          look: PracticeLook.intermediate,
+          title: widget.topic,
+          practiseAgain: (labels) => AiQuestionPage(
+            topic: widget.topic,
+            initialQuestions: all.where((q) => labels.contains(q.question)).toList(),
+          ),
+        ),
       ),
     );
-    Navigator.pop(context);
   }
 
   void _goToNextQuestion() {
