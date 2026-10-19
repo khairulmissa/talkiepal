@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:talkiepal/game_page.dart';
 import 'package:talkiepal/profile_page.dart';
 import 'package:talkiepal/services/exercise_service.dart';
+import 'package:talkiepal/services/speech_service.dart';
 import 'package:talkiepal/practice/widgets/practice_scaffold.dart';
 import 'package:talkiepal/practice/widgets/success_dialog.dart';
 import 'package:talkiepal/widgets/kids_bottom_nav.dart';
@@ -27,6 +28,9 @@ class AiSoundPage extends StatefulWidget {
 }
 
 class _AiSoundPageState extends State<AiSoundPage> {
+  // Words that are not good practice words on their own.
+  static const Set<String> _notPracticeWords = {'THE', 'A', 'AN'};
+
   static const Map<String, String> _soundTips = {
     'R': 'Focus on the "R" sound - Roll your tongue!',
     'S': 'Focus on the "S" sound - Like a snake hissing!',
@@ -46,6 +50,9 @@ class _AiSoundPageState extends State<AiSoundPage> {
 
   // Index of the letter box (words) or word (sentences) that is lit up.
   int highlightedUnit = -1;
+
+  // True while the whole word is being said, so every letter box is lit.
+  bool isWholeWordLit = false;
   Color highlightColor = PracticeColors.listen;
 
   // Bumped whenever the item changes, so an old highlight run stops.
@@ -100,7 +107,8 @@ class _AiSoundPageState extends State<AiSoundPage> {
     if (!mounted) return;
 
     setState(() {
-      exercises = result.exercises;
+      // Words like "THE" or "A" have no picture and sound wrong said alone.
+      exercises = result.exercises.where((e) => !_notPracticeWords.contains(e.word)).toList();
       isLoading = false;
     });
 
@@ -117,8 +125,10 @@ class _AiSoundPageState extends State<AiSoundPage> {
 
   // Call inside setState.
   void _stopHighlight() {
+    SpeechService.instance.stop();
     _highlightRun++;
     highlightedUnit = -1;
+    isWholeWordLit = false;
     isPlaying = false;
     isListening = false;
   }
@@ -149,17 +159,68 @@ class _AiSoundPageState extends State<AiSoundPage> {
 
   Future<void> _onListen() async {
     if (isPlaying || isListening) return;
+    final run = ++_highlightRun;
     setState(() {
       isPlaying = true;
+      highlightColor = PracticeColors.listen;
     });
 
-    // Audio is not connected yet; the highlight shows the reading pace.
-    final finished = await _highlightUnits(PracticeColors.listen, _pace);
+    final text = toSpoken(currentExercise.word);
 
-    if (!mounted || !finished) return;
+    if (widget.isSentence) {
+      // Slowly, one word at a time, so the target sound is clear.
+      await speakWordByWord(
+        text,
+        slow: true,
+        keepGoing: () => mounted && run == _highlightRun,
+        onWord: (i) => setState(() {
+          highlightedUnit = i;
+        }),
+      );
+    } else {
+      // Spell it box by box (R - E - D), then say the whole word (RED).
+      await _spellThenSay(text, run);
+    }
+
+    if (!mounted || run != _highlightRun) return;
     setState(() {
+      highlightedUnit = -1;
+      isWholeWordLit = false;
       isPlaying = false;
     });
+  }
+
+  /// Says each letter box in turn while it is lit, then the whole word slowly
+  /// with every box lit. The voice can only say letter names ("ar", "ee",
+  /// "dee"), so a box like TH is spelt as its two letters.
+  Future<void> _spellThenSay(String word, int run) async {
+    bool stillHere() => mounted && run == _highlightRun;
+    final units = currentUnits;
+
+    for (var i = 0; i < units.length; i++) {
+      if (!stillHere()) return;
+      setState(() {
+        highlightedUnit = i;
+      });
+      await SpeechService.instance.speak(units[i].split('').join(' '));
+      if (!stillHere()) return;
+      await Future.delayed(const Duration(milliseconds: 250));
+    }
+
+    if (!stillHere()) return;
+    setState(() {
+      highlightedUnit = -1;
+      isWholeWordLit = true;
+    });
+    await Future.delayed(const Duration(milliseconds: 300));
+    if (!stillHere()) return;
+    await SpeechService.instance.speak(word, slow: true);
+  }
+
+  @override
+  void dispose() {
+    SpeechService.instance.stop();
+    super.dispose();
   }
 
   Future<void> _onSpeak() async {
@@ -362,7 +423,7 @@ class _AiSoundPageState extends State<AiSoundPage> {
                         target: widget.sound,
                         size: 24,
                       )
-                    : _buildLetterBox(units[i], i == highlightedUnit, units.length),
+                    : _buildLetterBox(units[i], isWholeWordLit || i == highlightedUnit, units.length),
             ],
           ),
           const SizedBox(height: 16),

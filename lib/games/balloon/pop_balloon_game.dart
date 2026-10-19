@@ -9,6 +9,7 @@ import 'package:talkiepal/games/widgets/game_scaffold.dart';
 import 'package:talkiepal/practice/widgets/practice_scaffold.dart';
 import 'package:talkiepal/practice/widgets/success_dialog.dart';
 import 'package:talkiepal/services/exercise_service.dart';
+import 'package:talkiepal/services/speech_service.dart';
 import 'package:talkiepal/widgets/dino_mascot.dart';
 
 /// Words for one level: balloons with the sound and balloons without it.
@@ -77,6 +78,7 @@ class _PopBalloonGameState extends State<PopBalloonGame> {
 
   @override
   void dispose() {
+    SpeechService.instance.stop();
     _timer?.cancel();
     super.dispose();
   }
@@ -184,6 +186,8 @@ class _PopBalloonGameState extends State<PopBalloonGame> {
 
   void _onCorrect(String word) {
     if (phase != _Phase.playing) return;
+    // Say the word, so the child hears it as they pop it.
+    SpeechService.instance.speak(toSpoken(word));
     setState(() {
       popped++;
       totalPopped++;

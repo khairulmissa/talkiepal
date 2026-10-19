@@ -6,6 +6,7 @@ import 'package:talkiepal/practice/widgets/practice_scaffold.dart';
 import 'package:talkiepal/practice/widgets/success_dialog.dart';
 import 'package:talkiepal/services/exercise_service.dart';
 import 'package:talkiepal/services/minimal_pair_service.dart';
+import 'package:talkiepal/services/speech_service.dart';
 
 /// One round: a pair of words and the one Dino says.
 class _Round {
@@ -106,6 +107,7 @@ class _MinimalPairsGameState extends State<MinimalPairsGame> {
       rounds = [for (final pair in result.pairs) _Round(pair, _random.nextBool())];
       isLoading = false;
     });
+    _autoPlay();
 
     if (result.isOffline) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -120,6 +122,7 @@ class _MinimalPairsGameState extends State<MinimalPairsGame> {
 
   // Call inside setState.
   void _resetRound() {
+    SpeechService.instance.stop();
     _playRun++;
     isPlaying = false;
     isSolved = false;
@@ -133,12 +136,18 @@ class _MinimalPairsGameState extends State<MinimalPairsGame> {
       isPlaying = true;
     });
 
-    // Audio is not connected yet; the word shows in a bubble instead.
-    await Future.delayed(const Duration(milliseconds: 1500));
+    await SpeechService.instance.speak(toSpoken(currentRound.target.word));
 
     if (!mounted || run != _playRun) return;
     setState(() {
       isPlaying = false;
+    });
+  }
+
+  /// Says the word by itself when a new round starts, so the child can just listen.
+  void _autoPlay() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !isLoading && rounds.isNotEmpty) _onPlaySound();
     });
   }
 
@@ -165,6 +174,7 @@ class _MinimalPairsGameState extends State<MinimalPairsGame> {
         currentIndex++;
         _resetRound();
       });
+      _autoPlay();
     } else {
       showSuccessDialog(
         context,
@@ -173,6 +183,12 @@ class _MinimalPairsGameState extends State<MinimalPairsGame> {
         onNext: () => Navigator.pop(context),
       );
     }
+  }
+
+  @override
+  void dispose() {
+    SpeechService.instance.stop();
+    super.dispose();
   }
 
   @override
@@ -223,22 +239,13 @@ class _MinimalPairsGameState extends State<MinimalPairsGame> {
         ),
       ),
       const SizedBox(height: 10),
-      // Placeholder for the voice: shows the word while it "plays".
+      // No word shown here: the child has to listen.
       SizedBox(
         height: 34,
-        child: isPlaying
-            ? Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                decoration: BoxDecoration(color: const Color(0xFFE3F2FD), borderRadius: BorderRadius.circular(16)),
-                child: Text(
-                  '🔊 ${round.target.word}',
-                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: PracticeColors.listenDark),
-                ),
-              )
-            : const Text(
-                'Tap to hear the word',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: PracticeColors.soft),
-              ),
+        child: Text(
+          isPlaying ? '👂 Listen...' : 'Tap to hear the word again',
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: PracticeColors.soft),
+        ),
       ),
       const SizedBox(height: 14),
       IntrinsicHeight(

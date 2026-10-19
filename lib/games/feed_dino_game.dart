@@ -7,6 +7,7 @@ import 'package:talkiepal/games/widgets/game_scaffold.dart';
 import 'package:talkiepal/practice/widgets/practice_scaffold.dart';
 import 'package:talkiepal/practice/widgets/success_dialog.dart';
 import 'package:talkiepal/services/exercise_service.dart';
+import 'package:talkiepal/services/speech_service.dart';
 import 'package:talkiepal/widgets/dino_mascot.dart';
 
 /// One round: the food Dino asks for and the four foods on the tray.
@@ -78,6 +79,7 @@ class _FeedDinoGameState extends State<FeedDinoGame> {
       rounds = _buildRounds(FoodWords.pick(result.words, widget.rounds, _random));
       isLoading = false;
     });
+    _autoPlay();
 
     if (result.isOffline) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -103,6 +105,7 @@ class _FeedDinoGameState extends State<FeedDinoGame> {
 
   // Call inside setState.
   void _resetRound() {
+    SpeechService.instance.stop();
     _playRun++;
     isPlaying = false;
     isFed = false;
@@ -117,12 +120,18 @@ class _FeedDinoGameState extends State<FeedDinoGame> {
       isPlaying = true;
     });
 
-    // Audio is not connected yet; the button just shows it is "playing".
-    await Future.delayed(const Duration(milliseconds: 1500));
+    await SpeechService.instance.speak('Give me the ${toSpoken(currentRound.target.word)}!');
 
     if (!mounted || run != _playRun) return;
     setState(() {
       isPlaying = false;
+    });
+  }
+
+  /// Dino asks for the food out loud when a new round starts.
+  void _autoPlay() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !isLoading && rounds.isNotEmpty) _onPlaySound();
     });
   }
 
@@ -148,6 +157,7 @@ class _FeedDinoGameState extends State<FeedDinoGame> {
         currentIndex++;
         _resetRound();
       });
+      _autoPlay();
     } else {
       showSuccessDialog(
         context,
@@ -156,6 +166,12 @@ class _FeedDinoGameState extends State<FeedDinoGame> {
         onNext: () => Navigator.pop(context),
       );
     }
+  }
+
+  @override
+  void dispose() {
+    SpeechService.instance.stop();
+    super.dispose();
   }
 
   @override

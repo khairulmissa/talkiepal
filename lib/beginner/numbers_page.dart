@@ -3,6 +3,7 @@ import 'package:talkiepal/game_page.dart';
 import 'package:talkiepal/profile_page.dart';
 import 'package:talkiepal/practice/widgets/practice_scaffold.dart';
 import 'package:talkiepal/practice/widgets/success_dialog.dart';
+import 'package:talkiepal/services/speech_service.dart';
 import 'package:talkiepal/widgets/kids_bottom_nav.dart';
 import 'package:talkiepal/progress_page.dart';
 
@@ -36,6 +37,7 @@ class _PracticeNumbers1To10PageState extends State<PracticeNumbers1To10Page> {
   Map<String, String> get currentExercise => exercises[currentIndex];
 
   void _goToNextExercise() {
+    SpeechService.instance.stop();
     if (currentIndex + 1 < exercises.length) {
       setState(() {
         currentIndex++;
@@ -73,12 +75,18 @@ class _PracticeNumbers1To10PageState extends State<PracticeNumbers1To10Page> {
       isPlaying = true;
     });
 
-    // Audio is not connected yet; the word lights up for a moment.
-    await Future.delayed(const Duration(milliseconds: 1200));
+    // The word stays lit while the voice says it.
+    await SpeechService.instance.speak(toSpoken(currentExercise['word']!));
     if (!mounted) return;
     setState(() {
       isPlaying = false;
     });
+  }
+
+  @override
+  void dispose() {
+    SpeechService.instance.stop();
+    super.dispose();
   }
 
   Future<void> _onSpeak() async {

@@ -23,6 +23,7 @@ dependencies:
   firebase_storage: ^13.6.0
   flame: ^1.38.2
   record: ^6.2.1
+  flutter_tts: ^4.2.5
 
 dev_dependencies:
   flutter_test:
