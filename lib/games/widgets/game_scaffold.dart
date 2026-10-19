@@ -20,6 +20,8 @@ class GameLook {
       Color(0xFFD81B60), Color(0xFFAD1457), Color(0xFFFFE0E6), Color(0xFFF48FB1), Color(0xFFE77BC3));
   static const popBalloon = GameLook(
       Color(0xFF00897B), Color(0xFF00695C), Color(0xFFE0F7FA), Color(0xFF80DEEA), Color(0xFF4DB6AC));
+  static const voiceRocket = GameLook(
+      Color(0xFF8E24AA), Color(0xFF6A1B9A), Color(0xFFF3E5F5), Color(0xFFCE93D8), Color(0xFFBA68C8));
   static const feedDino = GameLook(
       Color(0xFFF57C00), Color(0xFFE65100), Color(0xFFFFF3D6), Color(0xFFFFCC80), Color(0xFFFFA569));
 }
