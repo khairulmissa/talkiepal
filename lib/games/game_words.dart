@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'package:talkiepal/games/picture_words.dart';
 import 'package:talkiepal/services/exercise_service.dart';
 
 /// Words for one game, plus whether the AI was offline.
@@ -14,14 +15,14 @@ class GameWords {
   static const List<String> topics = ['Animals', 'Fruits', 'Vehicles', 'Body Parts', 'Clothes'];
 
   /// Gets Beginner words from the AI for a random topic in [from].
-  /// Repeated words or pictures are dropped, so every choice looks different.
+  /// Only real words from the topic's picture list are kept, each with the
+  /// list's picture; the list fills up the rest, so there are always [count].
   static Future<GameWords> load({required int count, Random? random, List<String> from = topics}) async {
-    final topic = from[(random ?? Random()).nextInt(from.length)];
+    final rng = random ?? Random();
+    final topic = from[rng.nextInt(from.length)];
     final result = await ExerciseService.getExercises(level: 'beginner', topic: topic, count: count);
 
-    final seenWords = <String>{};
-    final seenEmojis = <String>{};
-    final words = result.exercises.where((e) => seenWords.add(e.word) && seenEmojis.add(e.emoji)).toList();
+    final words = PictureWords.pick(PictureWords.topics[topic]!, result.exercises, count, rng);
 
     return GameWords(topic, words, result.isOffline);
   }
