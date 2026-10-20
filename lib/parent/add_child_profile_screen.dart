@@ -5,6 +5,8 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
 import 'dart:convert';
 
+import 'widgets/parent_ui.dart';
+
 class AddChildProfileScreen extends StatefulWidget {
   const AddChildProfileScreen({super.key});
 
@@ -13,10 +15,6 @@ class AddChildProfileScreen extends StatefulWidget {
 }
 
 class _AddChildProfileScreenState extends State<AddChildProfileScreen> {
-  static const cream = Color(0xFFF5EFE8);
-  static const yellow = Color(0xFFFFEFA8);
-  static const purple = Color(0xFF8B5E9E);
-
   final _formKey = GlobalKey<FormState>();
   final _name = TextEditingController();
   final _otherConcern = TextEditingController();
@@ -72,8 +70,7 @@ class _AddChildProfileScreenState extends State<AddChildProfileScreen> {
 
   int _ageAt(DateTime birth, DateTime now) {
     var age = now.year - birth.year;
-    if (now.month < birth.month ||
-        (now.month == birth.month && now.day < birth.day)) {
+    if (now.month < birth.month || (now.month == birth.month && now.day < birth.day)) {
       age--;
     }
     return age;
@@ -104,6 +101,10 @@ class _AddChildProfileScreenState extends State<AddChildProfileScreen> {
       _showMessage('TalkiePal supports children aged 2 to 12.');
       return;
     }
+    if (_concern == null) {
+      _showMessage('Please select a speech or developmental concern.');
+      return;
+    }
     if (_goals.isEmpty) {
       _showMessage('Please select at least one therapy goal.');
       return;
@@ -115,8 +116,7 @@ class _AddChildProfileScreenState extends State<AddChildProfileScreen> {
     }
     setState(() => _saving = true);
     try {
-      final children = FirebaseFirestore.instance
-          .collection('users').doc(uid).collection('children');
+      final children = FirebaseFirestore.instance.collection('users').doc(uid).collection('children');
       final childRef = children.doc();
       // Query first for a friendly limit check. Firestore rules should also
       // enforce authorization; a server-side limit is needed for strict enforcement.
@@ -127,9 +127,7 @@ class _AddChildProfileScreenState extends State<AddChildProfileScreen> {
       // A small JPEG thumbnail is stored directly in the child document.
       // Base64 increases size by about 33%; keep it well under Firestore's
       // 1 MiB document limit. No Firebase Storage or billing is required.
-      final String? photoBase64 = _photoBytes == null
-          ? null
-          : base64Encode(_photoBytes!);
+      final String? photoBase64 = _photoBytes == null ? null : base64Encode(_photoBytes!);
       await childRef.set({
         'parentId': uid,
         'name': _name.text.trim(),
@@ -137,8 +135,7 @@ class _AddChildProfileScreenState extends State<AddChildProfileScreen> {
         'age': age,
         'gender': _gender,
         'speechConcern': _concern,
-        'otherConcern': _concern == 'Other' && _otherConcern.text.trim().isNotEmpty
-            ? _otherConcern.text.trim() : null,
+        'otherConcern': _concern == 'Other' && _otherConcern.text.trim().isNotEmpty ? _otherConcern.text.trim() : null,
         'specificProblem': _specificProblem.text.trim(),
         'therapyGoals': _goals.toList()..sort(),
         'targetSound': _targetSound,
@@ -165,22 +162,38 @@ class _AddChildProfileScreenState extends State<AddChildProfileScreen> {
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Profile successfully created!'),
-        content: const Text('Your child has been added. Would you like to find a therapist now?'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        icon: const CircleAvatar(
+          radius: 30,
+          backgroundColor: Color(0xFFE8F5E9),
+          child: Icon(Icons.check_rounded, size: 34, color: Color(0xFF43A047)),
+        ),
+        title: Text(
+          '${_name.text.trim()} is added!',
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontWeight: FontWeight.w800, color: ParentColors.ink),
+        ),
+        content: const Text(
+          'The profile is ready for practice. Would you like to find a therapist now?',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: ParentColors.soft),
+        ),
+        actionsAlignment: MainAxisAlignment.center,
         actions: [
           TextButton(
             onPressed: () {
               Navigator.pop(dialogContext);
               Navigator.pop(context, {'childId': childId, 'findTherapist': false});
             },
-            child: const Text('Back to Dashboard'),
+            child: const Text('Back to Home', style: TextStyle(color: ParentColors.soft)),
           ),
           FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: ParentColors.purple),
             onPressed: () {
               Navigator.pop(dialogContext);
               Navigator.pop(context, {'childId': childId, 'findTherapist': true});
             },
-            child: const Text('Find Therapist'),
+            child: const Text('Find therapist'),
           ),
         ],
       ),
@@ -195,176 +208,282 @@ class _AddChildProfileScreenState extends State<AddChildProfileScreen> {
     super.dispose();
   }
 
-  InputDecoration _decoration(String label, {String? hint}) => InputDecoration(
+  InputDecoration _decoration(String label, {String? hint, Widget? suffix}) => InputDecoration(
     labelText: label,
     hintText: hint,
+    suffixIcon: suffix,
     filled: true,
-    fillColor: Colors.white,
-    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+    fillColor: ParentColors.background,
+    labelStyle: const TextStyle(color: ParentColors.soft, fontWeight: FontWeight.w600),
+    floatingLabelStyle: const TextStyle(color: ParentColors.purple, fontWeight: FontWeight.w700),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(14),
+      borderSide: const BorderSide(color: ParentColors.purple, width: 1.5),
+    ),
+    errorBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(14),
+      borderSide: const BorderSide(color: Colors.red, width: 1.2),
+    ),
   );
+
+  /// Small label above a group of choices.
+  Widget _label(String text) => Padding(
+    padding: const EdgeInsets.only(top: 14, bottom: 8),
+    child: Text(
+      text,
+      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: ParentColors.ink),
+    ),
+  );
+
+  /// Choices as tappable pills; [selected] decides which are on.
+  Widget _choices(
+    List<String> options,
+    bool Function(String) selected,
+    void Function(String) onTap, {
+    String Function(String)? label,
+  }) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final option in options)
+          GestureDetector(
+            onTap: _saving ? null : () => setState(() => onTap(option)),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+              decoration: BoxDecoration(
+                color: selected(option) ? ParentColors.purple : Colors.white,
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(color: selected(option) ? ParentColors.purple : ParentColors.line, width: 1.5),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (selected(option)) ...[
+                    const Icon(Icons.check_rounded, size: 16, color: Colors.white),
+                    const SizedBox(width: 4),
+                  ],
+                  Flexible(
+                    child: Text(
+                      label?.call(option) ?? option,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: selected(option) ? Colors.white : ParentColors.ink,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: cream,
-      appBar: AppBar(
-        backgroundColor: yellow,
-        title: const Text('Create Child Profile'),
-      ),
-      body: SafeArea(
-        child: Form(
-          key: _formKey,
-          child: ListView(
-            padding: const EdgeInsets.all(20),
-            children: [
-              Center(
-                child: InkWell(
+    return Form(
+      key: _formKey,
+      child: ParentPage(
+        header: const ParentHeader(
+          title: 'Add a child',
+          subtitle: 'Create a profile for practice and progress',
+          back: true,
+        ),
+        bottom: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+            child: SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: FilledButton(
+                onPressed: _saving ? null : _save,
+                style: FilledButton.styleFrom(
+                  backgroundColor: ParentColors.purple,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+                child: _saving
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
+                      )
+                    : const Text('Save child profile', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+              ),
+            ),
+          ),
+        ),
+        children: [
+          // ---- Photo ----
+          ParentCard(
+            child: Row(
+              children: [
+                GestureDetector(
                   onTap: _saving ? null : _choosePhoto,
-                  borderRadius: BorderRadius.circular(60),
                   child: Stack(
                     clipBehavior: Clip.none,
                     children: [
                       CircleAvatar(
-                        radius: 55,
-                        backgroundColor: yellow,
-                        backgroundImage: _photoBytes == null
-                            ? null
-                            : MemoryImage(_photoBytes!),
+                        radius: 38,
+                        backgroundColor: ParentColors.yellowLight,
+                        backgroundImage: _photoBytes == null ? null : MemoryImage(_photoBytes!),
                         child: _photoBytes == null
-                            ? const Icon(Icons.add_a_photo, size: 42, color: purple)
+                            ? const Icon(Icons.child_care_rounded, size: 38, color: ParentColors.purple)
                             : null,
                       ),
                       const Positioned(
-                        bottom: 0,
+                        bottom: -2,
                         right: -2,
                         child: CircleAvatar(
-                          radius: 17,
-                          backgroundColor: purple,
-                          child: Icon(Icons.edit, size: 18, color: Colors.white),
+                          radius: 14,
+                          backgroundColor: ParentColors.purple,
+                          child: Icon(Icons.photo_camera_rounded, size: 15, color: Colors.white),
                         ),
                       ),
                     ],
                   ),
                 ),
-              ),
-              const SizedBox(height: 10),
-              const Center(child: Text('Tap to choose a child photo (optional)',
-                style: TextStyle(color: Colors.black54, fontSize: 12))),
-              const SizedBox(height: 24),
-              const Text('Personal Information',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 14),
-              TextFormField(
-                controller: _name,
-                textCapitalization: TextCapitalization.words,
-                decoration: _decoration('Child Name *'),
-                validator: (value) => value == null || value.trim().isEmpty
-                    ? 'Enter child name' : null,
-              ),
-              const SizedBox(height: 12),
-              InkWell(
-                onTap: _saving ? null : _pickDate,
-                child: InputDecorator(
-                  decoration: _decoration('Birth Date *'),
-                  child: Row(children: [
-                    Expanded(child: Text(_birthDate == null
-                        ? 'Select birth date' : _dateText(_birthDate!))),
-                    const Icon(Icons.calendar_month),
-                  ]),
-                ),
-              ),
-              if (_birthDate != null) Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text('Age: ${_ageAt(_birthDate!, DateTime.now())} years'),
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                decoration: _decoration('Gender (optional)'),
-                value: _gender,
-                items: ['Male', 'Female', 'Prefer not to say']
-                    .map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
-                onChanged: _saving ? null : (value) => setState(() => _gender = value),
-              ),
-              const SizedBox(height: 26),
-              const Text('Speech Information',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              const Text('Parent-reported concern; not a medical diagnosis.',
-                style: TextStyle(color: Colors.black54, fontSize: 12)),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                decoration: _decoration('Speech / Developmental Concern *'),
-                value: _concern,
-                isExpanded: true,
-                items: concerns.map((v) => DropdownMenuItem(
-                  value: v, child: Text(v, overflow: TextOverflow.ellipsis),
-                )).toList(),
-                onChanged: _saving ? null : (value) => setState(() => _concern = value),
-                validator: (value) => value == null ? 'Select a concern' : null,
-              ),
-              if (_concern == 'Other') ...[
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _otherConcern,
-                  decoration: _decoration('Other Concern (optional)'),
-                  maxLines: 2,
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _photoBytes == null ? 'Add a photo' : 'Photo added',
+                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: ParentColors.ink),
+                      ),
+                      const Text(
+                        'Optional. Helps your child find their own profile.',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: ParentColors.soft),
+                      ),
+                      const SizedBox(height: 6),
+                      GestureDetector(
+                        onTap: _saving ? null : _choosePhoto,
+                        child: Text(
+                          _photoBytes == null ? 'Choose photo' : 'Change photo',
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: ParentColors.purple),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _specificProblem,
-                decoration: _decoration('Specific Problem (optional)',
-                    hint: 'e.g. Difficulty saying R and S sounds'),
-                maxLines: 3,
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                decoration: _decoration('Target Sound (optional)'),
-                value: _targetSound,
-                items: ['R', 'S', 'L', 'TH', 'SH'].map((v) =>
-                  DropdownMenuItem(value: v, child: Text('/$v/'))).toList(),
-                onChanged: _saving ? null : (value) => setState(() => _targetSound = value),
-              ),
-              const SizedBox(height: 26),
-              const Text('Therapy Goals *',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 6),
-              const Text('Select one or more goals.',
-                style: TextStyle(color: Colors.black54)),
-              ...goalOptions.map((goal) => CheckboxListTile(
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                activeColor: purple,
-                title: Text(goal, style: const TextStyle(fontSize: 13)),
-                value: _goals.contains(goal),
-                onChanged: _saving ? null : (checked) => setState(() {
-                  if (checked == true) {
-                    _goals.add(goal);
-                  } else {
-                    _goals.remove(goal);
-                  }
-                }),
-              )),
-              const SizedBox(height: 18),
-              SizedBox(
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: _saving ? null : _save,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: yellow,
-                    foregroundColor: Colors.black,
-                  ),
-                  child: _saving
-                    ? const SizedBox(width: 20, height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Text('Save Child Profile',
-                        style: TextStyle(fontWeight: FontWeight.bold)),
-                ),
-              ),
-              const SizedBox(height: 24),
-            ],
+            ),
           ),
-        ),
+
+          // ---- About the child ----
+          ParentCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const ParentSectionTitle('About your child', icon: Icons.person_outline_rounded),
+                TextFormField(
+                  controller: _name,
+                  enabled: !_saving,
+                  textCapitalization: TextCapitalization.words,
+                  decoration: _decoration('Child name *'),
+                  validator: (value) => value == null || value.trim().isEmpty ? 'Enter child name' : null,
+                ),
+                const SizedBox(height: 12),
+                GestureDetector(
+                  onTap: _saving ? null : _pickDate,
+                  child: InputDecorator(
+                    decoration: _decoration(
+                      'Birth date *',
+                      suffix: const Icon(Icons.calendar_month_rounded, color: ParentColors.purple),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            _birthDate == null ? 'Select birth date' : _dateText(_birthDate!),
+                            style: TextStyle(
+                              fontSize: 15,
+                              color: _birthDate == null ? ParentColors.muted : ParentColors.ink,
+                            ),
+                          ),
+                        ),
+                        if (_birthDate != null)
+                          ParentPill('${_ageAt(_birthDate!, DateTime.now())} years', ParentColors.purple),
+                      ],
+                    ),
+                  ),
+                ),
+                _label('Gender (optional)'),
+                _choices(
+                  const ['Male', 'Female', 'Prefer not to say'],
+                  (g) => _gender == g,
+                  (g) => _gender = _gender == g ? null : g,
+                ),
+              ],
+            ),
+          ),
+
+          // ---- Speech ----
+          ParentCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const ParentSectionTitle('Speech', icon: Icons.record_voice_over_rounded),
+                const Text(
+                  'Parent-reported concern; not a medical diagnosis.',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: ParentColors.soft),
+                ),
+                _label('Speech or developmental concern *'),
+                _choices(concerns, (c) => _concern == c, (c) => _concern = c),
+                if (_concern == 'Other') ...[
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _otherConcern,
+                    enabled: !_saving,
+                    decoration: _decoration('Other concern (optional)'),
+                    maxLines: 2,
+                  ),
+                ],
+                const SizedBox(height: 14),
+                TextFormField(
+                  controller: _specificProblem,
+                  enabled: !_saving,
+                  decoration: _decoration('Specific problem (optional)', hint: 'e.g. Difficulty saying R and S sounds'),
+                  maxLines: 3,
+                ),
+                _label('Target sound (optional)'),
+                _choices(
+                  const ['R', 'S', 'L', 'TH', 'SH'],
+                  (v) => _targetSound == v,
+                  (v) => _targetSound = _targetSound == v ? null : v,
+                  label: (v) => '/$v/',
+                ),
+              ],
+            ),
+          ),
+
+          // ---- Goals ----
+          ParentCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const ParentSectionTitle('Therapy goals *', icon: Icons.flag_outlined),
+                const Text(
+                  'Select one or more goals.',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: ParentColors.soft),
+                ),
+                const SizedBox(height: 12),
+                _choices(
+                  goalOptions,
+                  _goals.contains,
+                  (goal) => _goals.contains(goal) ? _goals.remove(goal) : _goals.add(goal),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
