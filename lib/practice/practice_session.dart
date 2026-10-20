@@ -12,6 +12,9 @@ class PracticeItemResult {
   /// first time / not. Null when the child skipped it.
   int? bestScore;
 
+  /// What the phone heard on the best try, e.g. "wabbit" for RABBIT.
+  String? heard;
+
   PracticeItemResult(this.label, this.emoji);
 
   bool get wasSkipped => bestScore == null;
@@ -36,11 +39,14 @@ class PracticeSession {
     _items.putIfAbsent(label, () => PracticeItemResult(label, emoji));
   }
 
-  /// A speaking try: keeps the best score.
-  void recordScore(String label, int score) {
+  /// A speaking try: keeps the best score and what was heard then.
+  void recordScore(String label, int score, {List<String> heard = const []}) {
     final item = _items.putIfAbsent(label, () => PracticeItemResult(label, null));
     item.tries++;
-    if (item.bestScore == null || score > item.bestScore!) item.bestScore = score;
+    if (item.bestScore == null || score > item.bestScore!) {
+      item.bestScore = score;
+      item.heard = heard.isEmpty ? null : heard.first;
+    }
   }
 
   /// A question answer: 100 when right on the first try, 0 otherwise.

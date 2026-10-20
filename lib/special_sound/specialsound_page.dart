@@ -38,9 +38,12 @@ class SpecialSoundPage extends StatelessWidget {
 
   /// Every topic of this level (words and mini challenge for each sound),
   /// as named on the results screen.
-  static List<String> get topics => [
-        for (final s in [..._level1, ..._level2]) ...['Sound ${s.sound}', 'Mini Challenge ${s.sound}'],
-      ];
+  static List<String> get topics => topicEmojis.keys.toList();
+
+  /// The same topics with their pictures.
+  static Map<String, String> get topicEmojis => {
+    for (final s in [..._level1, ..._level2]) ...{'Sound ${s.sound}': s.emoji, 'Mini Challenge ${s.sound}': '🏆'},
+  };
 
   LevelTopic _soundTile(_Sound sound) {
     return LevelTopic(
@@ -80,10 +83,7 @@ class SpecialSoundPage extends StatelessWidget {
                 Container(
                   width: 48,
                   height: 5,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(3),
-                  ),
+                  decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(3)),
                 ),
                 const SizedBox(height: 16),
                 Text(sound.emoji, style: const TextStyle(fontSize: 48)),
@@ -183,14 +183,8 @@ class SpecialSoundPage extends StatelessWidget {
       question: 'Which sound do you want to practise? 🎶',
       tip: 'Watch the mouth shape, listen first, then try the sound slowly!',
       sections: [
-        LevelSection(
-          heading: '🌟 Level 1',
-          topics: [for (final sound in _level1) _soundTile(sound)],
-        ),
-        LevelSection(
-          heading: '🚀 Level 2',
-          topics: [for (final sound in _level2) _soundTile(sound)],
-        ),
+        LevelSection(heading: '🌟 Level 1', topics: [for (final sound in _level1) _soundTile(sound)]),
+        LevelSection(heading: '🚀 Level 2', topics: [for (final sound in _level2) _soundTile(sound)]),
       ],
     );
   }
