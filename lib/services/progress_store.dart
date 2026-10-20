@@ -111,20 +111,20 @@ class SessionRecord {
   }
 
   Map<String, dynamic> toMap() => {
-        'kind': kind,
-        'level': level,
-        'topic': topic,
-        'score': score,
-        'stars': stars,
-        'itemCount': itemCount,
-        'passedCount': passedCount,
-        'tries': tries,
-        'seconds': time.inSeconds,
-        'finishedAt': Timestamp.fromDate(finishedAt),
-        'isQuiz': isQuiz,
-        'items': items,
-        'mixedUp': mixedUp,
-      };
+    'kind': kind,
+    'level': level,
+    'topic': topic,
+    'score': score,
+    'stars': stars,
+    'itemCount': itemCount,
+    'passedCount': passedCount,
+    'tries': tries,
+    'seconds': time.inSeconds,
+    'finishedAt': Timestamp.fromDate(finishedAt),
+    'isQuiz': isQuiz,
+    'items': items,
+    'mixedUp': mixedUp,
+  };
 
   factory SessionRecord.fromMap(Map<String, dynamic> map) {
     final finished = map['finishedAt'];
@@ -162,8 +162,9 @@ class ChildProfile {
 
   /// Sound the parent picked to work on, e.g. "R" (null when not picked).
   final String? targetSound;
+  final int? age;
 
-  const ChildProfile({required this.id, required this.name, this.photo, this.targetSound});
+  const ChildProfile({required this.id, required this.name, this.photo, this.targetSound, this.age});
 }
 
 /// Saves and loads the children's finished practices and games.
@@ -229,6 +230,7 @@ class FirestoreProgressStore implements ProgressStore {
           name: (doc.data()['name'] ?? 'Child').toString(),
           photo: _photo(doc.data()['photoBase64']),
           targetSound: _sound(doc.data()['targetSound']),
+          age: _age(doc.data()),
         ),
     ]..sort((a, b) => a.name.compareTo(b.name));
     return list;
@@ -242,6 +244,20 @@ class FirestoreProgressStore implements ProgressStore {
     } catch (_) {
       return null;
     }
+  }
+
+  /// Age from the birth date, or the saved age.
+  static int? _age(Map<String, dynamic> data) {
+    final birthday = data['birthDate'];
+    if (birthday is Timestamp) {
+      final birth = birthday.toDate();
+      final now = DateTime.now();
+      var age = now.year - birth.year;
+      if (now.month < birth.month || (now.month == birth.month && now.day < birth.day)) age--;
+      return age;
+    }
+    final age = data['age'];
+    return age is int ? age : int.tryParse('${age ?? ''}');
   }
 
   /// "/r/", "R" or "r" become "R".

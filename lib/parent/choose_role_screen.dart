@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'parent_home_screen.dart';
+import 'package:talkiepal/parent/widgets/parent_ui.dart';
 import 'kids_profile_selection_screen.dart';  
 
 
@@ -151,12 +151,7 @@ class ChooseRoleScreen extends StatelessWidget {
                       title: 'Parent',
 
                       onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const ParentHomeScreen(),
-                          ),
-                        );
+                        Navigator.push(context, parentHomeRoute());
                       },
                     ),
                   ],

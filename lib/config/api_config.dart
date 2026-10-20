@@ -15,4 +15,6 @@ class ApiConfig {
   static const String generateQuestionsUrl = '$baseUrl/generate-questions';
 
   static const String generateMinimalPairsUrl = '$baseUrl/generate-minimal-pairs';
+
+  static const String chatUrl = '$baseUrl/chat';
 }
