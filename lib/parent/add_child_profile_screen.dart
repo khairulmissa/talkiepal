@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
 import 'dart:convert';
 
+import 'widgets/parent_form.dart';
 import 'widgets/parent_ui.dart';
 
 class AddChildProfileScreen extends StatefulWidget {
@@ -208,26 +209,8 @@ class _AddChildProfileScreenState extends State<AddChildProfileScreen> {
     super.dispose();
   }
 
-  InputDecoration _decoration(String label, {String? hint, Widget? suffix}) => InputDecoration(
-    labelText: label,
-    hintText: hint,
-    suffixIcon: suffix,
-    filled: true,
-    fillColor: ParentColors.background,
-    labelStyle: const TextStyle(color: ParentColors.soft, fontWeight: FontWeight.w600),
-    floatingLabelStyle: const TextStyle(color: ParentColors.purple, fontWeight: FontWeight.w700),
-    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
-    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
-    focusedBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(14),
-      borderSide: const BorderSide(color: ParentColors.purple, width: 1.5),
-    ),
-    errorBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(14),
-      borderSide: const BorderSide(color: Colors.red, width: 1.2),
-    ),
-  );
+  InputDecoration _decoration(String label, {String? hint, Widget? suffix}) =>
+      parentInputDecoration(label, hint: hint, suffix: suffix);
 
   /// Small label above a group of choices.
   Widget _label(String text) => Padding(
