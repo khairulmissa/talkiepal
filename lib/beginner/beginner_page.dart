@@ -26,6 +26,9 @@ class BeginnerPage extends StatelessWidget {
     'Vehicles': '🚗',
   };
 
+  /// Every topic of this level, as named on the results screen.
+  static List<String> get topics => ['Alphabets', 'Numbers', ..._aiTopics.keys];
+
   static void _open(BuildContext context, Widget page) {
     Navigator.push(context, MaterialPageRoute(builder: (context) => page));
   }

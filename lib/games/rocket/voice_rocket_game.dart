@@ -274,6 +274,7 @@ class _VoiceRocketGameState extends State<VoiceRocketGame> {
       note: hardest.isEmpty
           ? null
           : ('💪 Harder: ', 'long ${hardest.first.$1.sound} (longest ${seconds(hardest.first.$2.longestVoice)})'),
+      time: DateTime.now().difference(_startedAt),
     );
   }
 

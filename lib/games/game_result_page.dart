@@ -4,6 +4,7 @@ import 'package:talkiepal/practice/widgets/practice_scaffold.dart';
 import 'package:talkiepal/practice/widgets/result_widgets.dart';
 import 'package:talkiepal/practice/widgets/score_dialog.dart';
 import 'package:talkiepal/services/current_kid.dart';
+import 'package:talkiepal/services/progress_store.dart';
 import 'package:talkiepal/widgets/dino_mascot.dart';
 
 /// One line in the details for parents and therapists, e.g. one round,
@@ -61,6 +62,9 @@ class GameResult {
   /// Null when there is nothing to point out.
   final (String, String)? note;
 
+  /// How long the game took.
+  final Duration time;
+
   const GameResult({
     required this.title,
     required this.look,
@@ -70,6 +74,7 @@ class GameResult {
     required this.stats,
     required this.rows,
     this.note,
+    this.time = Duration.zero,
   });
 }
 
@@ -127,6 +132,7 @@ class FirstTryScore {
     ];
 
     final right = rightFirstTime;
+    final time = DateTime.now().difference(startedAt);
     return GameResult(
       title: title,
       look: look,
@@ -136,10 +142,11 @@ class FirstTryScore {
       stats: [
         GameStat('✅', '$right/${_rounds.length}', 'first try'),
         GameStat('👆', '$taps', 'taps'),
-        GameStat('⏱', gameTime(DateTime.now().difference(startedAt)), 'time'),
+        GameStat('⏱', gameTime(time), 'time'),
       ],
       rows: rows,
       note: mixedUpNote(_mixedUp),
+      time: time,
     );
   }
 }
@@ -185,6 +192,13 @@ class _GameResultPageState extends State<GameResultPage> {
   static const int _firstRows = 4;
 
   bool showAll = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Saved for the Progress pages.
+    ProgressStore.instance.save(SessionRecord.fromGame(widget.result));
+  }
 
   String get _cheer {
     final name = CurrentKid.name;

@@ -298,6 +298,7 @@ class _PopBalloonGameState extends State<PopBalloonGame> {
           ),
       ],
       note: mixedUpNote(mixedUp),
+      time: DateTime.now().difference(_startedAt),
     );
   }
 

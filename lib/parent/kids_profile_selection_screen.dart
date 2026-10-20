@@ -43,8 +43,8 @@ class KidsProfileSelectionScreen extends StatelessWidget {
     // StreamBuilder refreshes automatically after Firestore saves.
   }
 
-  void _openChild(BuildContext context, String childName, Uint8List? photo) {
-  CurrentKid.select(name: childName, photo: photo);
+  void _openChild(BuildContext context, String childId, String childName, Uint8List? photo) {
+  CurrentKid.select(name: childName, id: childId, photo: photo);
   Navigator.push(
     context,
     MaterialPageRoute(
@@ -140,7 +140,7 @@ class KidsProfileSelectionScreen extends StatelessWidget {
                             final name = (data['name'] ?? 'Child').toString();
                             final bytes = _photoBytes(data['photoBase64']);
                             return InkWell(
-                              onTap: () => _openChild(context, name, bytes),
+                              onTap: () => _openChild(context, child.id, name, bytes),
                               borderRadius: BorderRadius.circular(16),
                               child: Column(children: [
                                 Expanded(child: Container(
