@@ -11,7 +11,7 @@ import 'package:talkiepal/widgets/kids_bottom_nav.dart';
 import 'package:talkiepal/progress_page.dart';
 
 class PracticeAlphabetsPage extends StatefulWidget {
-  /// Practise only these letters (e.g. the hard ones again); null for all.
+  /// Practice only these letters (e.g. the hard ones again); null for all.
   final List<String>? only;
 
   const PracticeAlphabetsPage({super.key, this.only});
@@ -111,7 +111,7 @@ class _PracticeAlphabetsPageState extends State<PracticeAlphabetsPage> with Hold
         isPlaying = false;
       });
     } else {
-      // Show the results; "practise again" opens just the hard letters.
+      // Show the results; "practice again" opens just the hard letters.
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -119,7 +119,7 @@ class _PracticeAlphabetsPageState extends State<PracticeAlphabetsPage> with Hold
             session: session,
             look: PracticeLook.beginner,
             title: 'Alphabets',
-            practiseAgain: (labels) => PracticeAlphabetsPage(only: labels),
+            practiceAgain: (labels) => PracticeAlphabetsPage(only: labels),
           ),
         ),
       );

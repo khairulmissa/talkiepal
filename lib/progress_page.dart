@@ -53,7 +53,7 @@ class ProgressData {
   final int wordsSaid;
   final int daysThisWeek;
 
-  /// How much the child practised each day, Monday to Sunday, from 0 to 1.
+  /// How much the child practiced each day, Monday to Sunday, from 0 to 1.
   final List<double> week;
   final int todayIndex;
   final List<LevelProgress> levels;
@@ -97,7 +97,7 @@ class ProgressData {
     final today = _day(now ?? DateTime.now());
     final monday = today.subtract(Duration(days: today.weekday - 1));
 
-    // Days the child practised or played, and for how long.
+    // Days the child practiced or played, and for how long.
     final timeByDay = <DateTime, Duration>{};
     for (final s in sessions) {
       final day = _day(s.finishedAt);
@@ -407,8 +407,8 @@ class _ProgressPageState extends State<ProgressPage> {
   String get _dinoMessage {
     final name = CurrentKid.name ?? 'You';
     final days = data.daysThisWeek;
-    if (days == 0) return "Let's practise with Dino today! 🦖";
-    return '$name practised ${days == 1 ? '1 day' : '$days days'} this week!';
+    if (days == 0) return "Let's practice with Dino today! 🦖";
+    return '$name practiced ${days == 1 ? '1 day' : '$days days'} this week!';
   }
 
   Widget _buildGame(GameProgress game) {

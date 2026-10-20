@@ -179,8 +179,8 @@ class SpecialSoundPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return LevelMenuPage(
       theme: _theme,
-      dinoMessage: "Let's practise tricky sounds together!",
-      question: 'Which sound do you want to practise? 🎶',
+      dinoMessage: "Let's practice tricky sounds together!",
+      question: 'Which sound do you want to practice? 🎶',
       tip: 'Watch the mouth shape, listen first, then try the sound slowly!',
       sections: [
         LevelSection(heading: '🌟 Level 1', topics: [for (final sound in _level1) _soundTile(sound)]),

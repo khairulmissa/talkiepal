@@ -25,7 +25,7 @@ class _ParentAiChatScreenState extends State<ParentAiChatScreen> {
     'Activities for the /S/ sound',
     'Word games for bedtime',
     'My child does not want to talk',
-    'How long should we practise?',
+    'How long should we practice?',
   ];
 
   Future<void> sendMessage([String? text]) async {

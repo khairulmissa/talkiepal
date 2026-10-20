@@ -10,9 +10,7 @@ abstract class SpeechService {
   /// Says [text] and finishes when the voice is done (or stopped).
   /// [onWord] is called with the index of each word as it is spoken, so the
   /// page can light it up in time with the voice.
-  /// [cheerful] is Dino's own voice: higher and quicker, like a cartoon.
-  /// Practice words never use it, so they stay clear.
-  Future<void> speak(String text, {void Function(int wordIndex)? onWord, bool slow = false, bool cheerful = false});
+  Future<void> speak(String text, {void Function(int wordIndex)? onWord, bool slow = false});
 
   /// Stops talking straight away, e.g. when the child leaves the page.
   Future<void> stop();
@@ -27,12 +25,6 @@ class PhoneSpeechService implements SpeechService {
   static const double _rate = 0.36;
   static const double _slowRate = 0.30;
 
-  // Normal pitch is 1.0. Practice uses a little higher; Dino's cheerful
-  // voice much higher and quicker, so it sounds young and excited.
-  static const double _pitch = 1.1;
-  static const double _cheerfulPitch = 1.65;
-  static const double _cheerfulRate = 0.48;
-
   // Bumped for every new sentence, so word events from an old one are ignored.
   int _run = 0;
   void Function(int)? _onWord;
@@ -41,7 +33,7 @@ class PhoneSpeechService implements SpeechService {
   Future<void> _ready() {
     return _setUp ??= () async {
       await _tts.setLanguage('en-US');
-      await _tts.setPitch(_pitch);
+      await _tts.setPitch(1.1);
       await _tts.setVolume(1.0);
       // speak() then only finishes when the voice is done.
       await _tts.awaitSpeakCompletion(true);
@@ -59,12 +51,7 @@ class PhoneSpeechService implements SpeechService {
   }
 
   @override
-  Future<void> speak(
-    String text, {
-    void Function(int wordIndex)? onWord,
-    bool slow = false,
-    bool cheerful = false,
-  }) async {
+  Future<void> speak(String text, {void Function(int wordIndex)? onWord, bool slow = false}) async {
     await _ready();
     await _tts.stop();
 
@@ -74,8 +61,7 @@ class PhoneSpeechService implements SpeechService {
       if (run == _run) onWord?.call(i);
     };
 
-    await _tts.setSpeechRate(cheerful ? _cheerfulRate : (slow ? _slowRate : _rate));
-    await _tts.setPitch(cheerful ? _cheerfulPitch : _pitch);
+    await _tts.setSpeechRate(slow ? _slowRate : _rate);
     onWord?.call(0);
 
     try {

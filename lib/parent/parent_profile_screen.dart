@@ -420,7 +420,7 @@ class HelpScreen extends StatelessWidget {
     ),
     (
       'Why does it say "I can\'t hear you"?',
-      'Make sure the microphone is allowed, practise in a quiet room and ask your child to hold '
+      'Make sure the microphone is allowed, practice in a quiet room and ask your child to hold '
           'the button until it turns red, then speak close to the phone.',
     ),
     (

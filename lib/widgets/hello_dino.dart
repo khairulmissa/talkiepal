@@ -2,12 +2,11 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
-import 'package:talkiepal/services/speech_service.dart';
 import 'package:talkiepal/widgets/dino_mascot.dart';
 
 /// A short hello after a child picks their profile: Dino pops up, waves,
-/// says "Hi" with the child's name and "Ready to practise?", then "Let's go!" and opens
-/// [next]. Tapping anywhere skips straight to [next].
+/// shows "Hi" with the child's name and "Ready to practice?", then "Let's go!" and
+/// opens [next]. Tapping anywhere skips straight to [next].
 class HelloDinoScreen extends StatefulWidget {
   final String name;
 
@@ -68,38 +67,23 @@ class _HelloDinoScreenState extends State<HelloDinoScreen> with TickerProviderSt
     _run();
   }
 
-  /// Quiet moment after each line, so Dino does not rush from one to the next.
-  static const Duration _gap = Duration(milliseconds: 1200);
-
-  /// Says [text], keeps the bubble up for at least [shortest] so it can be
-  /// read, then pauses for [gap]. Waits at most 4 seconds in case the voice hangs.
-  Future<void> _say(String text, {Duration shortest = const Duration(milliseconds: 900), Duration gap = _gap}) async {
-    Future<void> voice() async {
-      try {
-        await SpeechService.instance.speak(text, cheerful: true).timeout(const Duration(seconds: 4));
-      } catch (_) {
-        // No voice: the bubble still shows.
-      }
-    }
-
-    await Future.wait([voice(), Future.delayed(shortest)]);
-    if (mounted && !_left) await Future.delayed(gap);
-  }
+  /// Shows the current bubble for [time] (no voice: just the animation).
+  Future<void> _hold(Duration time) => Future.delayed(time);
 
   Future<void> _run() async {
     await _pop.forward();
     if (!mounted || _left) return;
 
     setState(() => step = _Step.hello);
-    await _say('Hiii!');
+    await _hold(const Duration(milliseconds: 1800));
     if (!mounted || _left) return;
 
     setState(() => step = _Step.ready);
-    await _say('Are you ready to practise? Yay!');
+    await _hold(const Duration(milliseconds: 1800));
     if (!mounted || _left) return;
 
     setState(() => step = _Step.go);
-    await _say('Let\'s go!', shortest: const Duration(milliseconds: 600), gap: const Duration(milliseconds: 600));
+    await _hold(const Duration(milliseconds: 1100));
     if (!mounted || _left) return;
     await _out.forward();
     _leave();
@@ -108,7 +92,6 @@ class _HelloDinoScreenState extends State<HelloDinoScreen> with TickerProviderSt
   void _leave() {
     if (_left || !mounted) return;
     _left = true;
-    SpeechService.instance.stop();
     Navigator.pushReplacement(context, widget.next());
   }
 
@@ -123,7 +106,7 @@ class _HelloDinoScreenState extends State<HelloDinoScreen> with TickerProviderSt
   String get _bubbleText => switch (step) {
     _Step.pop => '',
     _Step.hello => 'Hi ${widget.name}! 👋',
-    _Step.ready => 'Ready to practise? 🎉',
+    _Step.ready => 'Ready to practice? 🎉',
     _Step.go => 'Let\'s go! 🚀',
   };
 
@@ -159,7 +142,7 @@ class _HelloDinoScreenState extends State<HelloDinoScreen> with TickerProviderSt
                     ),
                   ),
 
-                // Confetti falling from "Ready to practise?" on.
+                // Confetti falling from "Ready to practice?" on.
                 if (step == _Step.ready || step == _Step.go)
                   for (final (x, y, angle, c) in _confetti)
                     Align(
@@ -239,17 +222,17 @@ class _Bubble extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width - 48),
-      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(26),
-        border: Border.all(color: const Color(0xFFF6C445), width: 4),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFF6C445), width: 3),
         boxShadow: const [BoxShadow(color: Color(0x22000000), blurRadius: 12, offset: Offset(0, 6))],
       ),
       child: Text(
         text,
         textAlign: TextAlign.center,
-        style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: _HelloDinoScreenState._ink),
+        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: _HelloDinoScreenState._ink),
       ),
     );
   }

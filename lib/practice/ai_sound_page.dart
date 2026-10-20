@@ -19,7 +19,7 @@ class AiSoundPage extends StatefulWidget {
   final bool isSentence;
   final int count;
 
-  /// Practise exactly these (e.g. the hard words again) instead of new AI words.
+  /// Practice exactly these (e.g. the hard words again) instead of new AI words.
   final List<PracticeExercise>? exercises;
 
   const AiSoundPage({
@@ -223,7 +223,7 @@ class _AiSoundPageState extends State<AiSoundPage> with HoldToSpeak {
     _showResultDialog(check);
   }
 
-  /// Shows the results; "practise again" opens just the hard words.
+  /// Shows the results; "practice again" opens just the hard words.
   void _finish() {
     final all = exercises;
     Navigator.pushReplacement(
@@ -233,7 +233,7 @@ class _AiSoundPageState extends State<AiSoundPage> with HoldToSpeak {
           session: session,
           look: _look,
           title: widget.isSentence ? 'Mini Challenge ${widget.sound}' : 'Sound ${widget.sound}',
-          practiseAgain: (labels) => AiSoundPage(
+          practiceAgain: (labels) => AiSoundPage(
             sound: widget.sound,
             isSentence: widget.isSentence,
             exercises: all.where((e) => labels.contains(e.word)).toList(),

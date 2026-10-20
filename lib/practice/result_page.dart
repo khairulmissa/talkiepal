@@ -17,9 +17,9 @@ class ResultPage extends StatefulWidget {
   final String title;
 
   /// Opens the same practice with only the given items (the hard ones).
-  final Widget Function(List<String> labels)? practiseAgain;
+  final Widget Function(List<String> labels)? practiceAgain;
 
-  const ResultPage({super.key, required this.session, required this.look, required this.title, this.practiseAgain});
+  const ResultPage({super.key, required this.session, required this.look, required this.title, this.practiceAgain});
 
   @override
   State<ResultPage> createState() => _ResultPageState();
@@ -46,7 +46,7 @@ class _ResultPageState extends State<ResultPage> {
     final who = (name == null || name.isEmpty) ? '' : ', $name';
     if (score >= ScoreBand.great) return 'Amazing$who! 🌟';
     if (score >= ScoreBand.pass) return 'Great job$who! 🎉';
-    return 'Good try$who! Keep practising 💪';
+    return 'Good try$who! Keep practicing 💪';
   }
 
   String get _time {
@@ -111,7 +111,7 @@ class _ResultPageState extends State<ResultPage> {
               children: [
                 _Legend(color: ScoreBand.greatColor, text: '85%+ great'),
                 _Legend(color: ScoreBand.almostColor, text: '70–84% almost'),
-                _Legend(color: ScoreBand.lowColor, text: 'below 70% practise'),
+                _Legend(color: ScoreBand.lowColor, text: 'below 70% practice'),
               ],
             ),
           const SizedBox(height: 8),
@@ -126,7 +126,7 @@ class _ResultPageState extends State<ResultPage> {
                 TextSpan(
                   children: [
                     const TextSpan(
-                      text: '🎯 Practise again: ',
+                      text: '🎯 Practice again: ',
                       style: TextStyle(color: ScoreBand.lowColor),
                     ),
                     TextSpan(text: hard.map((i) => i.label).join(', ')),
@@ -137,22 +137,22 @@ class _ResultPageState extends State<ResultPage> {
             ),
           ],
           const SizedBox(height: 16),
-          if (hard.isNotEmpty && widget.practiseAgain != null) ...[
+          if (hard.isNotEmpty && widget.practiceAgain != null) ...[
             ResultButton(
               label: hard.length == 1
-                  ? '🔁 PRACTISE THE HARD ONE'
-                  : '🔁 PRACTISE ${hard.length} HARD ${session.isQuiz ? 'QUESTIONS' : 'WORDS'}',
+                  ? '🔁 PRACTICE THE HARD ONE'
+                  : '🔁 PRACTICE ${hard.length} HARD ${session.isQuiz ? 'QUESTIONS' : 'WORDS'}',
               filled: true,
               onTap: () => Navigator.pushReplacement(
                 context,
-                MaterialPageRoute(builder: (_) => widget.practiseAgain!(hard.map((i) => i.label).toList())),
+                MaterialPageRoute(builder: (_) => widget.practiceAgain!(hard.map((i) => i.label).toList())),
               ),
             ),
             const SizedBox(height: 12),
           ],
           ResultButton(
             label: '🏠 DONE',
-            filled: hard.isEmpty || widget.practiseAgain == null,
+            filled: hard.isEmpty || widget.practiceAgain == null,
             onTap: () => Navigator.pop(context),
           ),
         ],

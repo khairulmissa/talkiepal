@@ -16,7 +16,7 @@ class AiQuestionPage extends StatefulWidget {
   final String topic;
   final int count;
 
-  /// Questions to practise instead of asking the AI (e.g. the hard ones again).
+  /// Questions to practice instead of asking the AI (e.g. the hard ones again).
   final List<PracticeQuestion>? initialQuestions;
 
   const AiQuestionPage({
@@ -231,7 +231,7 @@ class _AiQuestionPageState extends State<AiQuestionPage> {
 
   void _finish() {
     final all = questions;
-    // Show the results; "practise again" asks just the hard questions.
+    // Show the results; "practice again" asks just the hard questions.
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
@@ -239,7 +239,7 @@ class _AiQuestionPageState extends State<AiQuestionPage> {
           session: session,
           look: PracticeLook.intermediate,
           title: widget.topic,
-          practiseAgain: (labels) => AiQuestionPage(
+          practiceAgain: (labels) => AiQuestionPage(
             topic: widget.topic,
             initialQuestions: all.where((q) => labels.contains(q.question)).toList(),
           ),

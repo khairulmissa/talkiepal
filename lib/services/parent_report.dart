@@ -83,7 +83,7 @@ class WeekScore {
 class LevelScore {
   final PracticeLook look;
 
-  /// Null when not practised yet.
+  /// Null when not practiced yet.
   final int? score;
   final int done;
   final int total;
@@ -387,7 +387,7 @@ class ParentReport {
     return hard.take(count).toList();
   }
 
-  List<WordScore> get wordsToPractise => hardestWords(_since(summaryPeriod), 8);
+  List<WordScore> get wordsToPractice => hardestWords(_since(summaryPeriod), 8);
 
   List<MixedUp> get mixedUp {
     final counts = <String, int>{};

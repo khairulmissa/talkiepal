@@ -151,7 +151,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       key: formKey,
       child: EntryPage(
         title: 'Create account',
-        subtitle: 'Join TalkiePal to practise speech with your child',
+        subtitle: 'Join TalkiePal to practice speech with your child',
         back: true,
         children: [
           EntryField(

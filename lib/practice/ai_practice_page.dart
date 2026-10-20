@@ -20,7 +20,7 @@ class AiPracticePage extends StatefulWidget {
   final String topicEmoji;
   final int count;
 
-  /// Practise exactly these (e.g. the hard words again) instead of new AI words.
+  /// Practice exactly these (e.g. the hard words again) instead of new AI words.
   final List<PracticeExercise>? exercises;
 
   const AiPracticePage({
@@ -95,7 +95,7 @@ class _AiPracticePageState extends State<AiPracticePage> with HoldToSpeak {
     }
   }
 
-  /// Shows the results; "practise again" opens just the hard words.
+  /// Shows the results; "practice again" opens just the hard words.
   void _finish() {
     final all = exercises;
     Navigator.pushReplacement(
@@ -105,7 +105,7 @@ class _AiPracticePageState extends State<AiPracticePage> with HoldToSpeak {
           session: session,
           look: _look,
           title: widget.topic,
-          practiseAgain: (labels) => AiPracticePage(
+          practiceAgain: (labels) => AiPracticePage(
             level: widget.level,
             levelLabel: widget.levelLabel,
             topic: widget.topic,
