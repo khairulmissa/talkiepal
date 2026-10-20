@@ -3,9 +3,9 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:talkiepal/games/food_words.dart';
 import 'package:talkiepal/games/game_words.dart';
+import 'package:talkiepal/games/game_result_page.dart';
 import 'package:talkiepal/games/widgets/game_scaffold.dart';
 import 'package:talkiepal/practice/widgets/practice_scaffold.dart';
-import 'package:talkiepal/practice/widgets/success_dialog.dart';
 import 'package:talkiepal/services/exercise_service.dart';
 import 'package:talkiepal/services/speech_service.dart';
 import 'package:talkiepal/widgets/dino_mascot.dart';
@@ -54,6 +54,9 @@ class _FeedDinoGameState extends State<FeedDinoGame> {
   // Bumped whenever the round changes, so an old sound run stops.
   int _playRun = 0;
 
+  // Right on the first try or not, for the results screen.
+  FirstTryScore _score = FirstTryScore();
+
   _Round get currentRound => rounds[currentIndex];
 
   @override
@@ -79,6 +82,8 @@ class _FeedDinoGameState extends State<FeedDinoGame> {
       rounds = _buildRounds(FoodWords.pick(result.words, widget.rounds, _random));
       isLoading = false;
     });
+    _score = FirstTryScore();
+    _scoreRound();
     _autoPlay();
 
     if (result.isOffline) {
@@ -128,6 +133,12 @@ class _FeedDinoGameState extends State<FeedDinoGame> {
     });
   }
 
+  void _scoreRound() {
+    if (rounds.isEmpty) return;
+    final target = currentRound.target;
+    _score.newRound(lead: target.emoji, label: target.word, answer: target.word);
+  }
+
   /// Dino asks for the food out loud when a new round starts.
   void _autoPlay() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -146,6 +157,7 @@ class _FeedDinoGameState extends State<FeedDinoGame> {
         if (wrongFoods.isEmpty) stars++;
       } else {
         wrongFoods = {...wrongFoods, i};
+        _score.wrong(currentRound.foods[i].word);
         lastWrong = i;
       }
     });
@@ -157,13 +169,24 @@ class _FeedDinoGameState extends State<FeedDinoGame> {
         currentIndex++;
         _resetRound();
       });
+      _scoreRound();
       _autoPlay();
     } else {
-      showSuccessDialog(
+      Navigator.pushReplacement(
         context,
-        detail: 'You got $stars ⭐ out of ${rounds.length}!',
-        nextLabel: 'FINISH →',
-        onNext: () => Navigator.pop(context),
+        MaterialPageRoute(
+          builder: (_) => GameResultPage(
+            result: _score.result(
+              title: 'Feed the Dino',
+              look: _look,
+              praise: 'Yummy job',
+              emoji: '😋',
+              heard: 'wanted',
+              picked: 'gave',
+            ),
+            playAgain: () => FeedDinoGame(rounds: widget.rounds),
+          ),
+        ),
       );
     }
   }

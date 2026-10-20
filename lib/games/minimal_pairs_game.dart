@@ -1,9 +1,9 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:talkiepal/games/game_result_page.dart';
 import 'package:talkiepal/games/widgets/game_scaffold.dart';
 import 'package:talkiepal/practice/widgets/practice_scaffold.dart';
-import 'package:talkiepal/practice/widgets/success_dialog.dart';
 import 'package:talkiepal/services/exercise_service.dart';
 import 'package:talkiepal/services/minimal_pair_service.dart';
 import 'package:talkiepal/services/speech_service.dart';
@@ -36,6 +36,13 @@ class _Difference {
       suffix++;
     }
     return _Difference(prefix, suffix);
+  }
+
+  /// The sounds that are different, e.g. "R ↔ W" for RED / WED.
+  String mixedUp(String a, String b) {
+    String part(String w) => w.substring(prefix, max(prefix, w.length - suffix));
+    final sounds = [part(a), part(b)]..sort();
+    return sounds.join(' ↔ ');
   }
 
   String get hint {
@@ -83,6 +90,9 @@ class _MinimalPairsGameState extends State<MinimalPairsGame> {
   // Bumped whenever the round changes, so an old sound run stops.
   int _playRun = 0;
 
+  // Right on the first try or not, for the results screen.
+  FirstTryScore _score = FirstTryScore();
+
   _Round get currentRound => rounds[currentIndex];
 
   @override
@@ -107,6 +117,8 @@ class _MinimalPairsGameState extends State<MinimalPairsGame> {
       rounds = [for (final pair in result.pairs) _Round(pair, _random.nextBool())];
       isLoading = false;
     });
+    _score = FirstTryScore();
+    _scoreRound();
     _autoPlay();
 
     if (result.isOffline) {
@@ -144,6 +156,16 @@ class _MinimalPairsGameState extends State<MinimalPairsGame> {
     });
   }
 
+  void _scoreRound() {
+    if (rounds.isEmpty) return;
+    final round = currentRound;
+    _score.newRound(
+      lead: round.target.emoji,
+      label: '${round.pair.a.word}  vs  ${round.pair.b.word}',
+      answer: round.target.word,
+    );
+  }
+
   /// Says the word by itself when a new round starts, so the child can just listen.
   void _autoPlay() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -164,6 +186,11 @@ class _MinimalPairsGameState extends State<MinimalPairsGame> {
         if (wrongPickA == null) stars++;
       } else {
         wrongPickA = isA;
+        final round = currentRound;
+        _score.wrong(
+          round.other.word,
+          mixedUp: _Difference.of(round.pair.a.word, round.pair.b.word).mixedUp(round.pair.a.word, round.pair.b.word),
+        );
       }
     });
   }
@@ -174,13 +201,17 @@ class _MinimalPairsGameState extends State<MinimalPairsGame> {
         currentIndex++;
         _resetRound();
       });
+      _scoreRound();
       _autoPlay();
     } else {
-      showSuccessDialog(
+      Navigator.pushReplacement(
         context,
-        detail: 'You got $stars ⭐ out of ${rounds.length}!',
-        nextLabel: 'FINISH →',
-        onNext: () => Navigator.pop(context),
+        MaterialPageRoute(
+          builder: (_) => GameResultPage(
+            result: _score.result(title: 'Minimal Pairs', look: _look, praise: 'Great listening', emoji: '👂'),
+            playAgain: () => MinimalPairsGame(rounds: widget.rounds),
+          ),
+        ),
       );
     }
   }

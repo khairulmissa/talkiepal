@@ -2,9 +2,9 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:talkiepal/games/game_words.dart';
+import 'package:talkiepal/games/game_result_page.dart';
 import 'package:talkiepal/games/widgets/game_scaffold.dart';
 import 'package:talkiepal/practice/widgets/practice_scaffold.dart';
-import 'package:talkiepal/practice/widgets/success_dialog.dart';
 import 'package:talkiepal/services/exercise_service.dart';
 import 'package:talkiepal/services/speech_service.dart';
 
@@ -49,6 +49,9 @@ class _SoundMatcherGameState extends State<SoundMatcherGame> {
   // Bumped whenever the round changes, so an old sound run stops.
   int _playRun = 0;
 
+  // Right on the first try or not, for the results screen.
+  FirstTryScore _score = FirstTryScore();
+
   _Round get currentRound => rounds[currentIndex];
 
   @override
@@ -73,6 +76,8 @@ class _SoundMatcherGameState extends State<SoundMatcherGame> {
       rounds = _buildRounds(result.words);
       isLoading = false;
     });
+    _score = FirstTryScore();
+    _scoreRound();
     _autoPlay();
 
     if (result.isOffline) {
@@ -121,6 +126,12 @@ class _SoundMatcherGameState extends State<SoundMatcherGame> {
     });
   }
 
+  void _scoreRound() {
+    if (rounds.isEmpty) return;
+    final target = currentRound.target;
+    _score.newRound(lead: target.emoji, label: target.word, answer: target.word);
+  }
+
   /// Says the word by itself when a new round starts, so the child can just listen.
   void _autoPlay() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -142,6 +153,7 @@ class _SoundMatcherGameState extends State<SoundMatcherGame> {
     } else {
       setState(() {
         wrongPicks = {...wrongPicks, i};
+        _score.wrong(currentRound.options[i].word);
       });
     }
   }
@@ -152,13 +164,24 @@ class _SoundMatcherGameState extends State<SoundMatcherGame> {
         currentIndex++;
         _resetRound();
       });
+      _scoreRound();
       _autoPlay();
     } else {
-      showSuccessDialog(
+      Navigator.pushReplacement(
         context,
-        detail: 'You got $stars ⭐ out of ${rounds.length}!',
-        nextLabel: 'FINISH →',
-        onNext: () => Navigator.pop(context),
+        MaterialPageRoute(
+          builder: (_) => GameResultPage(
+            result: _score.result(
+              title: 'Sound Matcher',
+              look: _look,
+              praise: 'Great listening',
+              emoji: '👂',
+              heard: 'heard',
+              picked: 'picked',
+            ),
+            playAgain: () => SoundMatcherGame(rounds: widget.rounds),
+          ),
+        ),
       );
     }
   }
