@@ -25,8 +25,10 @@ class IntermediatePage extends StatelessWidget {
     'Places Around Town': '🏙️',
   };
 
-  /// Every topic of this level, as named on the results screen.
-  static List<String> get topics => _aiTopics.keys.toList();
+  /// Every topic of this level, as named on the results screen, with its picture.
+  static Map<String, String> get topicEmojis => _aiTopics;
+
+  static List<String> get topics => topicEmojis.keys.toList();
 
   @override
   Widget build(BuildContext context) {

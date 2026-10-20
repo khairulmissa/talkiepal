@@ -65,6 +65,9 @@ class GameResult {
   /// How long the game took.
   final Duration time;
 
+  /// Sounds or words the child mixed up and how often, e.g. {"R ↔ W": 2}.
+  final Map<String, int> mixedUp;
+
   const GameResult({
     required this.title,
     required this.look,
@@ -75,6 +78,7 @@ class GameResult {
     required this.rows,
     this.note,
     this.time = Duration.zero,
+    this.mixedUp = const {},
   });
 }
 
@@ -147,6 +151,7 @@ class FirstTryScore {
       rows: rows,
       note: mixedUpNote(_mixedUp),
       time: time,
+      mixedUp: Map.of(_mixedUp),
     );
   }
 }

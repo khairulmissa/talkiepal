@@ -219,7 +219,7 @@ class _AiSoundPageState extends State<AiSoundPage> with HoldToSpeak {
 
   @override
   void onSpeechChecked(SpeechCheck check) {
-    session.recordScore(currentExercise.word, check.score);
+    session.recordScore(currentExercise.word, check.score, heard: check.heard);
     _showResultDialog(check);
   }
 

@@ -26,8 +26,10 @@ class BeginnerPage extends StatelessWidget {
     'Vehicles': '🚗',
   };
 
-  /// Every topic of this level, as named on the results screen.
-  static List<String> get topics => ['Alphabets', 'Numbers', ..._aiTopics.keys];
+  /// Every topic of this level, as named on the results screen, with its picture.
+  static Map<String, String> get topicEmojis => {'Alphabets': '🔤', 'Numbers': '🔢', ..._aiTopics};
+
+  static List<String> get topics => topicEmojis.keys.toList();
 
   static void _open(BuildContext context, Widget page) {
     Navigator.push(context, MaterialPageRoute(builder: (context) => page));

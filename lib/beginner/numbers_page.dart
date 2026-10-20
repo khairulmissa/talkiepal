@@ -123,7 +123,7 @@ class _PracticeNumbers1To10PageState extends State<PracticeNumbers1To10Page> wit
 
   @override
   void onSpeechChecked(SpeechCheck check) {
-    session.recordScore(currentExercise['word']!, check.score);
+    session.recordScore(currentExercise['word']!, check.score, heard: check.heard);
     _showResultDialog(check);
   }
 

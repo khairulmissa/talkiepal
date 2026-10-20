@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'add_child_profile_screen.dart';
 import 'parent_ai_chat_screen.dart';
 import 'parent_profile_screen.dart';
+import 'parent_progress_screen.dart';
 
 class ParentHomeScreen extends StatefulWidget {
   const ParentHomeScreen({super.key});
@@ -312,7 +313,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
           child: Row(mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               _navItem(Icons.home, 'Home', selected: true),
-              _navItem(Icons.bar_chart, 'Progress'),
+              _navItem(Icons.bar_chart, 'Progress', onTap: () => ParentProgressScreen.open(context)),
               _navItem(Icons.medical_services, 'Therapist'),
               _navItem(Icons.person, 'Profile', onTap: () =>
                 Navigator.push(context, MaterialPageRoute(

@@ -169,7 +169,7 @@ class _PracticeAlphabetsPageState extends State<PracticeAlphabetsPage> with Hold
 
   @override
   void onSpeechChecked(SpeechCheck check) {
-    session.recordScore(currentExercise['letter']!, check.score);
+    session.recordScore(currentExercise['letter']!, check.score, heard: check.heard);
     _showResultDialog(check);
   }
 

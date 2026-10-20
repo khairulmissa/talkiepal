@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
@@ -37,6 +39,9 @@ class SessionRecord {
   /// Every word, question or round with how it went.
   final List<Map<String, dynamic>> items;
 
+  /// Games: sounds or words the child mixed up and how often.
+  final Map<String, int> mixedUp;
+
   const SessionRecord({
     required this.kind,
     required this.level,
@@ -50,6 +55,7 @@ class SessionRecord {
     required this.finishedAt,
     this.isQuiz = false,
     this.items = const [],
+    this.mixedUp = const {},
   });
 
   bool get isGame => kind == game;
@@ -77,6 +83,7 @@ class SessionRecord {
             if (item.emoji != null) 'emoji': item.emoji,
             'tries': item.tries,
             if (item.bestScore != null) 'score': item.bestScore,
+            if (item.heard != null) 'heard': item.heard,
           },
       ],
     );
@@ -99,6 +106,7 @@ class SessionRecord {
           {'lead': row.lead, 'label': row.label, 'detail': row.detail, 'pill': row.pill, 'score': row.score},
         if (result.note != null) {'note': '${result.note!.$1}${result.note!.$2}'},
       ],
+      mixedUp: result.mixedUp,
     );
   }
 
@@ -115,6 +123,7 @@ class SessionRecord {
         'finishedAt': Timestamp.fromDate(finishedAt),
         'isQuiz': isQuiz,
         'items': items,
+        'mixedUp': mixedUp,
       };
 
   factory SessionRecord.fromMap(Map<String, dynamic> map) {
@@ -137,40 +146,60 @@ class SessionRecord {
         for (final item in (map['items'] as List? ?? const []))
           if (item is Map) Map<String, dynamic>.from(item),
       ],
+      mixedUp: {
+        for (final e in (map['mixedUp'] as Map? ?? const {}).entries)
+          if (e.value is num) e.key.toString(): (e.value as num).toInt(),
+      },
     );
   }
 }
 
-/// Saves and loads the current child's finished practices and games.
+/// A child of the signed-in parent, for the parent's Progress page.
+class ChildProfile {
+  final String id;
+  final String name;
+  final Uint8List? photo;
+
+  /// Sound the parent picked to work on, e.g. "R" (null when not picked).
+  final String? targetSound;
+
+  const ChildProfile({required this.id, required this.name, this.photo, this.targetSound});
+}
+
+/// Saves and loads the children's finished practices and games.
 /// Every page uses [ProgressStore.instance], so tests can swap in a fake.
 abstract class ProgressStore {
   static ProgressStore instance = FirestoreProgressStore();
 
-  /// Saves a finished session. Does nothing when no child is picked.
+  /// Saves a finished session for the current child. Does nothing when no
+  /// child is picked.
   Future<void> save(SessionRecord record);
 
-  /// The child's sessions, newest first.
-  Future<List<SessionRecord>> sessions();
+  /// A child's sessions, newest first: the current child's, or [childId]'s
+  /// (for the parent's Progress page).
+  Future<List<SessionRecord>> sessions({String? childId});
+
+  /// The signed-in parent's children, by name.
+  Future<List<ChildProfile>> children();
 }
 
 /// Keeps sessions in Firestore under the child:
 /// users/{parent}/children/{child}/practiceSessions.
 class FirestoreProgressStore implements ProgressStore {
-  CollectionReference<Map<String, dynamic>>? get _collection {
+  CollectionReference<Map<String, dynamic>>? get _children {
     final parent = FirebaseAuth.instance.currentUser?.uid;
-    final child = CurrentKid.id;
-    if (parent == null || child == null) return null;
-    return FirebaseFirestore.instance
-        .collection('users')
-        .doc(parent)
-        .collection('children')
-        .doc(child)
-        .collection('practiceSessions');
+    if (parent == null) return null;
+    return FirebaseFirestore.instance.collection('users').doc(parent).collection('children');
+  }
+
+  CollectionReference<Map<String, dynamic>>? _sessionsOf(String? child) {
+    if (child == null) return null;
+    return _children?.doc(child).collection('practiceSessions');
   }
 
   @override
   Future<void> save(SessionRecord record) async {
-    final collection = _collection;
+    final collection = _sessionsOf(CurrentKid.id);
     if (collection == null) return;
     try {
       await collection.add({...record.toMap(), 'savedAt': FieldValue.serverTimestamp()});
@@ -181,10 +210,43 @@ class FirestoreProgressStore implements ProgressStore {
   }
 
   @override
-  Future<List<SessionRecord>> sessions() async {
-    final collection = _collection;
+  Future<List<SessionRecord>> sessions({String? childId}) async {
+    final collection = _sessionsOf(childId ?? CurrentKid.id);
     if (collection == null) return [];
     final snapshot = await collection.orderBy('finishedAt', descending: true).limit(1000).get();
     return [for (final doc in snapshot.docs) SessionRecord.fromMap(doc.data())];
+  }
+
+  @override
+  Future<List<ChildProfile>> children() async {
+    final collection = _children;
+    if (collection == null) return [];
+    final snapshot = await collection.get();
+    final list = [
+      for (final doc in snapshot.docs)
+        ChildProfile(
+          id: doc.id,
+          name: (doc.data()['name'] ?? 'Child').toString(),
+          photo: _photo(doc.data()['photoBase64']),
+          targetSound: _sound(doc.data()['targetSound']),
+        ),
+    ]..sort((a, b) => a.name.compareTo(b.name));
+    return list;
+  }
+
+  static Uint8List? _photo(dynamic raw) {
+    if (raw is! String || raw.isEmpty) return null;
+    try {
+      // Plain Base64 or data:image/jpeg;base64,...
+      return base64Decode(raw.contains(',') ? raw.split(',').last : raw);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// "/r/", "R" or "r" become "R".
+  static String? _sound(dynamic raw) {
+    final sound = raw?.toString().replaceAll('/', '').trim().toUpperCase() ?? '';
+    return sound.isEmpty ? null : sound;
   }
 }
