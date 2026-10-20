@@ -1,452 +1,215 @@
 import 'package:flutter/material.dart';
+import 'package:talkiepal/services/parent_store.dart';
 
+import 'widgets/parent_form.dart';
+import 'widgets/parent_ui.dart';
+
+/// Edit the parent's own details.
 class EditProfileScreen extends StatefulWidget {
-  const EditProfileScreen({
-    super.key,
-    this.username = "Adam Shah",
-  });
-
-  final String username;
+  const EditProfileScreen({super.key});
 
   @override
-  State<EditProfileScreen> createState() =>
-      _EditProfileScreenState();
+  State<EditProfileScreen> createState() => _EditProfileScreenState();
 }
 
-class _EditProfileScreenState
-    extends State<EditProfileScreen> {
-
+class _EditProfileScreenState extends State<EditProfileScreen> {
   final formKey = GlobalKey<FormState>();
 
-  final nameController =
-      TextEditingController();
-
-  final emailController =
-      TextEditingController(
-    text: "adamparent@gmail.com",
-  );
-
-  final phoneController =
-      TextEditingController();
-
-  final dobController =
-      TextEditingController();
-
-  late TextEditingController
-      nicknameController;
+  final nameController = TextEditingController();
+  final usernameController = TextEditingController();
+  final emailController = TextEditingController();
+  final phoneController = TextEditingController();
+  DateTime? birthDate;
 
   @override
   void initState() {
     super.initState();
+    _load();
+  }
 
-    nicknameController =
-        TextEditingController(
-      text: widget.username,
-    );
+  Future<void> _load() async {
+    try {
+      final me = await ParentStore.instance.me();
+      if (!mounted) return;
+      setState(() {
+        if (nameController.text.isEmpty) nameController.text = me.name;
+        usernameController.text = me.name;
+        emailController.text = me.email;
+      });
+    } catch (e) {
+      debugPrint('[EditProfile] could not load: $e');
+    }
   }
 
   @override
   void dispose() {
     nameController.dispose();
-    nicknameController.dispose();
+    usernameController.dispose();
     emailController.dispose();
     phoneController.dispose();
-    dobController.dispose();
     super.dispose();
   }
 
+  Future<void> _pickDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: birthDate ?? DateTime(now.year - 30),
+      firstDate: DateTime(now.year - 100),
+      lastDate: now,
+    );
+    if (picked != null && mounted) setState(() => birthDate = picked);
+  }
+
   void saveProfile() {
-    if (formKey.currentState!
-        .validate()) {
-
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
-        const SnackBar(
-          content: Text(
-            "Profile updated successfully",
-          ),
-        ),
-      );
-
-      Navigator.pop(context);
+    if (!formKey.currentState!.validate()) return;
+    if (birthDate == null) {
+      _tell('Date of birth is required');
+      return;
     }
+    _tell('Profile updated successfully');
+    Navigator.pop(context);
   }
 
-  Widget inputBox({
-    required String label,
-    required TextEditingController
-        controller,
-    bool readOnly = false,
-  }) {
-    return Padding(
-      padding:
-          const EdgeInsets.only(
-        bottom: 12,
-      ),
-
-      child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
-
-        children: [
-
-          Text(
-            "$label:",
-
-            style: const TextStyle(
-              fontWeight:
-                  FontWeight.bold,
-              fontSize: 14,
-            ),
-          ),
-
-          const SizedBox(height: 5),
-
-          TextFormField(
-            controller: controller,
-            readOnly: readOnly,
-
-            decoration:
-                InputDecoration(
-              filled: true,
-
-              fillColor: readOnly
-                  ? Colors
-                      .grey
-                      .shade200
-                  : Colors.white,
-
-              contentPadding:
-                  const EdgeInsets
-                      .symmetric(
-                horizontal: 15,
-                vertical: 12,
-              ),
-
-              border:
-                  OutlineInputBorder(
-                borderRadius:
-                    BorderRadius
-                        .circular(
-                  25,
-                ),
-
-                borderSide:
-                    BorderSide.none,
-              ),
-            ),
-
-            validator: (value) {
-              if (readOnly) {
-                return null;
-              }
-
-              if (value == null ||
-                  value.isEmpty) {
-                return "$label is required";
-              }
-
-              return null;
-            },
-          ),
-        ],
-      ),
-    );
+  void _tell(String text) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(text)));
   }
 
-  Widget navItem(
-    IconData icon,
-    String label,
-  ) {
-    return Column(
-      mainAxisAlignment:
-          MainAxisAlignment.center,
-
-      children: [
-
-        Icon(
-          icon,
-          size: 28,
-          color: Colors.black,
-        ),
-
-        Text(
-          label,
-
-          style: const TextStyle(
-            fontSize: 11,
-            fontWeight:
-                FontWeight.bold,
-          ),
-        ),
-      ],
-    );
-  }
+  String? _required(String label, String? value) => value == null || value.trim().isEmpty ? '$label is required' : null;
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor:
-          const Color(0xFFFFFBF4),
+    final name = nameController.text.trim();
 
-      resizeToAvoidBottomInset:
-          true,
-
-      body: SafeArea(
-        child: Column(
-          children: [
-
-            Expanded(
-              child: Form(
-                key: formKey,
-
-                child:
-                    SingleChildScrollView(
-                  padding:
-                      const EdgeInsets
-                          .symmetric(
-                    horizontal: 20,
-                  ),
-
-                  child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment
-                            .start,
-
-                    children: [
-
-                      const SizedBox(
-                        height: 15,
-                      ),
-
-                      Row(
-                        children: [
-
-                          IconButton(
-                            onPressed: () {
-                              Navigator.pop(
-                                  context);
-                            },
-
-                            icon: const Icon(
-                              Icons.arrow_back,
-                            ),
-                          ),
-
-                          const Text(
-                            "Edit Profile",
-
-                            style: TextStyle(
-                              fontWeight:
-                                  FontWeight
-                                      .bold,
-                              fontSize: 16,
-                            ),
-                          ),
-                        ],
-                      ),
-
-                      const SizedBox(
-                        height: 15,
-                      ),
-
-                      Center(
-                        child: Stack(
-                          children: [
-
-                            const CircleAvatar(
-                              radius: 60,
-
-                              backgroundImage:
-                                  AssetImage(
-                                'lib/assets/images/profile.png',
-                              ),
-                            ),
-
-                            Positioned(
-                              bottom: 5,
-                              right: 5,
-
-                              child:
-                                  GestureDetector(
-                                onTap: () {
-                                  ScaffoldMessenger.of(
-                                          context)
-                                      .showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        "Edit picture clicked",
-                                      ),
-                                    ),
-                                  );
-                                },
-
-                                child: Container(
-                                  padding:
-                                      const EdgeInsets
-                                          .all(7),
-
-                                  decoration:
-                                      const BoxDecoration(
-                                    color:
-                                        Colors
-                                            .black,
-
-                                    shape:
-                                        BoxShape
-                                            .circle,
-                                  ),
-
-                                  child:
-                                      const Icon(
-                                    Icons
-                                        .camera_alt,
-
-                                    color:
-                                        Colors
-                                            .white,
-
-                                    size: 18,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      const SizedBox(
-                        height: 25,
-                      ),
-
-                      inputBox(
-                        label: "Name",
-                        controller:
-                            nameController,
-                      ),
-
-                      inputBox(
-                        label: "Username",
-                        controller:
-                            nicknameController,
-                        readOnly: true,
-                      ),
-
-                      inputBox(
-                        label: "Email",
-                        controller:
-                            emailController,
-                        readOnly: true,
-                      ),
-
-                      inputBox(
-                        label:
-                            "Phone Number",
-                        controller:
-                            phoneController,
-                      ),
-
-                      inputBox(
-                        label:
-                            "Date of Birth",
-                        controller:
-                            dobController,
-                      ),
-
-                      const SizedBox(
-                        height: 15,
-                      ),
-
-                      SizedBox(
-                        width:
-                            double.infinity,
-                        height: 48,
-
-                        child:
-                            ElevatedButton(
-                          style:
-                              ElevatedButton
-                                  .styleFrom(
-                            backgroundColor:
-                                const Color(
-                              0xFFD6D600,
-                            ),
-
-                            shape:
-                                RoundedRectangleBorder(
-                              borderRadius:
-                                  BorderRadius
-                                      .circular(
-                                30,
-                              ),
-                            ),
-                          ),
-
-                          onPressed:
-                              saveProfile,
-
-                          child:
-                              const Text(
-                            "Save Changes",
-
-                            style:
-                                TextStyle(
-                              color: Colors
-                                  .white,
-
-                              fontWeight:
-                                  FontWeight
-                                      .bold,
-                            ),
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(
-                        height: 20,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-
-            Container(
-              height: 65,
-              color: Colors.white,
-
-              child: Row(
-                mainAxisAlignment:
-                    MainAxisAlignment
-                        .spaceAround,
-
+    return Form(
+      key: formKey,
+      child: ParentPage(
+        header: ParentHeader(
+          title: 'Edit profile',
+          subtitle: 'Keep your details up to date',
+          back: true,
+          below: Row(
+            children: [
+              Stack(
+                clipBehavior: Clip.none,
                 children: [
-
-                  navItem(
-                    Icons.home,
-                    "Home",
+                  CircleAvatar(
+                    radius: 34,
+                    backgroundColor: ParentColors.yellow,
+                    child: Text(
+                      name.isEmpty ? '?' : name[0].toUpperCase(),
+                      style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: ParentColors.purpleDark),
+                    ),
                   ),
-
-                  navItem(
-                    Icons.bar_chart,
-                    "Progress",
-                  ),
-
-                  navItem(
-                    Icons
-                        .medical_services,
-                    "Therapist",
-                  ),
-
-                  navItem(
-                    Icons.person,
-                    "Profile",
+                  Positioned(
+                    bottom: -2,
+                    right: -2,
+                    child: GestureDetector(
+                      onTap: () => _tell('Changing your photo is coming soon.'),
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: ParentColors.purpleLight, width: 2),
+                        ),
+                        child: const Icon(Icons.photo_camera_rounded, size: 15, color: ParentColors.purple),
+                      ),
+                    ),
                   ),
                 ],
               ),
-            ),
-          ],
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name.isEmpty ? 'Your name' : name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white),
+                    ),
+                    Text(
+                      emailController.text,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white70),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
+        bottom: ParentSaveButton(label: 'Save changes', onPressed: saveProfile),
+        children: [
+          ParentCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const ParentSectionTitle('Personal details', icon: Icons.person_outline_rounded),
+                TextFormField(
+                  controller: nameController,
+                  textCapitalization: TextCapitalization.words,
+                  decoration: parentInputDecoration('Name'),
+                  validator: (v) => _required('Name', v),
+                  onChanged: (_) => setState(() {}),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: phoneController,
+                  keyboardType: TextInputType.phone,
+                  decoration: parentInputDecoration('Phone number', hint: 'e.g. 012-345 6789'),
+                  validator: (v) => _required('Phone number', v),
+                ),
+                const SizedBox(height: 12),
+                GestureDetector(
+                  onTap: _pickDate,
+                  child: InputDecorator(
+                    decoration: parentInputDecoration(
+                      'Date of birth',
+                      suffix: const Icon(Icons.calendar_month_rounded, color: ParentColors.purple),
+                    ),
+                    child: Text(
+                      birthDate == null
+                          ? 'Select date'
+                          : '${birthDate!.day.toString().padLeft(2, '0')}/'
+                                '${birthDate!.month.toString().padLeft(2, '0')}/${birthDate!.year}',
+                      style: TextStyle(fontSize: 15, color: birthDate == null ? ParentColors.muted : ParentColors.ink),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          ParentCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const ParentSectionTitle('Account', icon: Icons.verified_user_outlined),
+                TextFormField(
+                  controller: usernameController,
+                  readOnly: true,
+                  decoration: parentInputDecoration('Username', locked: true),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: emailController,
+                  readOnly: true,
+                  decoration: parentInputDecoration('Email', locked: true),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Username and email are linked to your sign-in and cannot be changed here.',
+                  style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: ParentColors.soft),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
