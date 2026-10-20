@@ -86,7 +86,7 @@ class _ChooseRoleScreenState extends State<ChooseRoleScreen> {
               const SizedBox(height: 24),
               _RoleCard(
                 title: 'I\'m a Kid',
-                text: 'Practise words and play fun games with Dino',
+                text: 'Practice words and play fun games with Dino',
                 image: 'lib/assets/images/kids.png',
                 colors: const [Color(0xFFFBE08A), EntryColors.yellow],
                 edge: const Color(0xFFDDA92A),

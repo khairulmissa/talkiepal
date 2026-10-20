@@ -52,7 +52,7 @@ String _sessionEmoji(SessionRecord s) {
 String _sessionTitle(SessionRecord s) => s.isGame ? s.topic : '${s.level} · ${s.topic}';
 
 /// Progress of the parent's children: summary, levels, games, words to
-/// practise and every session, worked out from what each child saved.
+/// practice and every session, worked out from what each child saved.
 class ParentProgressScreen extends StatefulWidget {
   const ParentProgressScreen({super.key});
 
@@ -183,7 +183,7 @@ class _ParentProgressScreenState extends State<ParentProgressScreen> {
     final weak = r.needsAttention;
     final strong = r.strongest;
     final changes = r.changes;
-    final words = r.wordsToPractise;
+    final words = r.wordsToPractice;
     final mixed = r.mixedUp;
     final recent = r.sessions.take(4).toList();
 
@@ -301,7 +301,7 @@ class _ParentProgressScreenState extends State<ParentProgressScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const _Heading('Words to practise', icon: Icons.record_voice_over_rounded),
+              const _Heading('Words to practice', icon: Icons.record_voice_over_rounded),
               const Text(
                 'Lowest best score in the last 2 weeks',
                 style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _soft),
@@ -386,7 +386,7 @@ class ProgressDetailScreen extends StatelessWidget {
       children: [
         const SizedBox(height: 12),
         if (r.sessions.isEmpty)
-          const _Card(child: Text('Nothing practised here yet.'))
+          const _Card(child: Text('Nothing practiced here yet.'))
         else ...[
           _Card(
             child: Row(
@@ -760,7 +760,7 @@ class _ChangeRow extends StatelessWidget {
                 Text(
                   c.isUp
                       ? 'this week, compared with before · keep going!'
-                      : 'this week, compared with before · practise again',
+                      : 'this week, compared with before · practice again',
                   style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: _soft),
                 ),
               ],
@@ -782,7 +782,7 @@ class _TargetSoundCard extends StatelessWidget {
     final t = target;
     final String sub;
     if (t.sessions == 0) {
-      sub = 'Not practised yet · try Special Sound ${t.sound}';
+      sub = 'Not practiced yet · try Special Sound ${t.sound}';
     } else if (t.sessions <= 3 || t.weeks == 0) {
       sub = '${t.sessions} ${t.sessions == 1 ? 'session' : 'sessions'} so far';
     } else {

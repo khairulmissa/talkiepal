@@ -112,15 +112,15 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
   static String _tipFor(String? sound) {
     switch (sound) {
       case 'S':
-        return 'Practise the /s/ sound with words such as sun, sock and snake. Keep practice playful and short.';
+        return 'Practice the /s/ sound with words such as sun, sock and snake. Keep practice playful and short.';
       case 'R':
         return 'Try gentle /r/ practice with red, rain and rabbit. Praise each attempt.';
       case 'L':
         return 'Try /l/ words like lion, leaf and lamp. Model the sound without pressuring your child.';
       case 'TH':
-        return 'Model the /th/ sound using think and thumb. Practise together in front of a mirror.';
+        return 'Model the /th/ sound using think and thumb. Practice together in front of a mirror.';
       case 'SH':
-        return 'Practise /sh/ with shoe, ship and sheep. Try making a quiet "shhh" sound together.';
+        return 'Practice /sh/ with shoe, ship and sheep. Try making a quiet "shhh" sound together.';
       default:
         return 'Spend 5–10 minutes playing with sounds, naming pictures and praising your child\'s efforts.';
     }
@@ -493,7 +493,7 @@ class _NoChildCard extends StatelessWidget {
                   style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: ParentColors.ink),
                 ),
                 Text(
-                  'Create a profile to start practising and see their progress.',
+                  'Create a profile to start practicing and see their progress.',
                   style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: ParentColors.soft),
                 ),
               ],

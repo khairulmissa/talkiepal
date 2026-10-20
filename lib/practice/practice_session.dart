@@ -34,7 +34,7 @@ class PracticeSession {
 
   PracticeSession({this.isQuiz = false});
 
-  /// Adds an item to the list, in the order it is practised.
+  /// Adds an item to the list, in the order it is practiced.
   void addItem(String label, {String? emoji}) {
     _items.putIfAbsent(label, () => PracticeItemResult(label, emoji));
   }
@@ -71,7 +71,7 @@ class PracticeSession {
 
   Duration get duration => DateTime.now().difference(startedAt);
 
-  /// Items to practise again: below the pass score, or skipped.
+  /// Items to practice again: below the pass score, or skipped.
   List<PracticeItemResult> get hardItems =>
       _items.values.where((i) => (i.bestScore ?? 0) < passScore).toList();
 }

@@ -5,7 +5,7 @@ const Color _pinkDark = Color(0xFFC2185B);
 const Color _pinkLight = Color(0xFFFFD6E8);
 const Color _soft = Color(0xFF7A6A85);
 
-/// Score bands used everywhere: 85%+ great, 70-84% almost, below 70% practise.
+/// Score bands used everywhere: 85%+ great, 70-84% almost, below 70% practice.
 class ScoreBand {
   static const int great = 85;
   static const int pass = 70;

@@ -11,7 +11,7 @@ import 'package:talkiepal/widgets/kids_bottom_nav.dart';
 import 'package:talkiepal/progress_page.dart';
 
 class PracticeNumbers1To10Page extends StatefulWidget {
-  /// Practise only these numbers (e.g. the hard ones again); null for all.
+  /// Practice only these numbers (e.g. the hard ones again); null for all.
   final List<String>? only;
 
   const PracticeNumbers1To10Page({super.key, this.only});
@@ -65,7 +65,7 @@ class _PracticeNumbers1To10PageState extends State<PracticeNumbers1To10Page> wit
         isPlaying = false;
       });
     } else {
-      // Show the results; "practise again" opens just the hard numbers.
+      // Show the results; "practice again" opens just the hard numbers.
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -73,7 +73,7 @@ class _PracticeNumbers1To10PageState extends State<PracticeNumbers1To10Page> wit
             session: session,
             look: PracticeLook.beginner,
             title: 'Numbers',
-            practiseAgain: (labels) => PracticeNumbers1To10Page(only: labels),
+            practiceAgain: (labels) => PracticeNumbers1To10Page(only: labels),
           ),
         ),
       );

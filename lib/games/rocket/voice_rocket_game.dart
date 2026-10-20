@@ -244,7 +244,7 @@ class _VoiceRocketGameState extends State<VoiceRocketGame> {
     final played = [for (var i = 0; i < _levels.length; i++) if (_scores[i] != null) (_levels[i], _scores[i]!)];
     final longest = played.fold(0.0, (best, p) => max(best, p.$2.longestVoice));
 
-    // The sound held for the shortest time is the one to practise.
+    // The sound held for the shortest time is the one to practice.
     final hardest = played.where((p) => p.$2.longestVoice < 3).toList()
       ..sort((a, b) => a.$2.longestVoice.compareTo(b.$2.longestVoice));
 
