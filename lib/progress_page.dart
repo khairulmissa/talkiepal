@@ -1,7 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:talkiepal/game_page.dart';
 import 'package:talkiepal/profile_page.dart';
+import 'package:talkiepal/beginner/beginner_page.dart';
+import 'package:talkiepal/games/widgets/game_scaffold.dart';
+import 'package:talkiepal/intermediate/intermediate_page.dart';
+import 'package:talkiepal/practice/widgets/practice_scaffold.dart';
+import 'package:talkiepal/practice/widgets/score_dialog.dart';
+import 'package:talkiepal/pre intermediate/pre_intermediate_page.dart';
 import 'package:talkiepal/services/current_kid.dart';
+import 'package:talkiepal/services/progress_store.dart';
+import 'package:talkiepal/special_sound/specialsound_page.dart';
 import 'package:talkiepal/widgets/dino_mascot.dart';
 import 'package:talkiepal/widgets/kids_bottom_nav.dart';
 
@@ -24,9 +32,22 @@ class ProgressBadge {
   const ProgressBadge(this.emoji, this.name, this.earned);
 }
 
-/// Everything shown on the Progress page.
+/// How the child did in one game.
+class GameProgress {
+  final String emoji;
+  final String name;
+
+  /// Best stars in one game (0 = not played yet).
+  final int bestStars;
+  final int plays;
+  final GameLook look;
+
+  const GameProgress(this.emoji, this.name, this.bestStars, this.plays, this.look);
+}
+
+/// Everything shown on the Progress page, worked out from the child's
+/// saved practices and games.
 class ProgressData {
-  final String kidName;
   final int stars;
   final int dayStreak;
   final int wordsSaid;
@@ -36,10 +57,10 @@ class ProgressData {
   final List<double> week;
   final int todayIndex;
   final List<LevelProgress> levels;
+  final List<GameProgress> games;
   final List<ProgressBadge> badges;
 
   const ProgressData({
-    required this.kidName,
     required this.stars,
     required this.dayStreak,
     required this.wordsSaid,
@@ -47,33 +68,128 @@ class ProgressData {
     required this.week,
     required this.todayIndex,
     required this.levels,
+    required this.games,
     required this.badges,
   });
 
-  /// Sample numbers until practice results are saved.
-  static const ProgressData sample = ProgressData(
-    kidName: 'Aisyah',
-    stars: 128,
-    dayStreak: 5,
-    wordsSaid: 64,
-    daysThisWeek: 5,
-    week: [0.5, 0.8, 0.3, 0.9, 0.6, 0.0, 0.0],
-    todayIndex: 4,
-    levels: [
-      LevelProgress('A', 'Beginner', 34, 40, Color(0xFF4CAF50), Color(0xFF2E7D32)),
-      LevelProgress('B', 'Pre Intermediate', 18, 40, Color(0xFF42A5F5), Color(0xFF1565C0)),
-      LevelProgress('C', 'Intermediate', 7, 35, Color(0xFFFF8A3D), Color(0xFFD84315)),
-      LevelProgress('D', 'Special Sound', 3, 16, Color(0xFFD81B8C), Color(0xFF9C1361)),
-    ],
-    badges: [
-      ProgressBadge('🌱', 'First Word', true),
-      ProgressBadge('🔤', 'ABC Star', true),
-      ProgressBadge('🔥', '5 Day Streak', true),
-      ProgressBadge('🐍', 'S Sound', false),
-      ProgressBadge('🦁', 'L Sound', false),
-      ProgressBadge('🏆', 'Super Talker', false),
-    ],
-  );
+  // Every level with its topics, in menu order.
+  static final List<(PracticeLook, List<String>)> _levels = [
+    (PracticeLook.beginner, BeginnerPage.topics),
+    (PracticeLook.preIntermediate, PreIntermediatePage.topics),
+    (PracticeLook.intermediate, IntermediatePage.topics),
+    (PracticeLook.specialSound, SpecialSoundPage.topics),
+  ];
+
+  // Every game, named as on its results screen.
+  static const List<(String, String, GameLook)> _games = [
+    ('🔊', 'Sound Matcher', GameLook.soundMatcher),
+    ('👂', 'Minimal Pairs', GameLook.minimalPairs),
+    ('👍', 'Yes or No', GameLook.yesOrNo),
+    ('🦕', 'Feed the Dino', GameLook.feedDino),
+    ('🚀', 'Voice Rocket', GameLook.voiceRocket),
+    ('🎈', 'Pop the Balloon', GameLook.popBalloon),
+  ];
+
+  /// A full bar in "This week" is this much practice in a day.
+  static const Duration _fullDay = Duration(minutes: 15);
+
+  factory ProgressData.fromSessions(List<SessionRecord> sessions, {DateTime? now}) {
+    final today = _day(now ?? DateTime.now());
+    final monday = today.subtract(Duration(days: today.weekday - 1));
+
+    // Days the child practised or played, and for how long.
+    final timeByDay = <DateTime, Duration>{};
+    for (final s in sessions) {
+      final day = _day(s.finishedAt);
+      // A session shorter than a second still counts as practice that day.
+      final time = s.time < const Duration(seconds: 1) ? const Duration(seconds: 1) : s.time;
+      timeByDay[day] = (timeByDay[day] ?? Duration.zero) + time;
+    }
+
+    final week = [
+      for (var i = 0; i < 7; i++)
+        ((timeByDay[monday.add(Duration(days: i))] ?? Duration.zero).inSeconds / _fullDay.inSeconds).clamp(0.0, 1.0),
+    ];
+    final daysThisWeek = [
+      for (var i = 0; i < 7; i++) monday.add(Duration(days: i)),
+    ].where(timeByDay.containsKey).length;
+
+    final practices = sessions.where((s) => !s.isGame).toList();
+    final wordsSaid = practices.fold(0, (sum, s) => sum + s.wordsSaid);
+    final streak = _streak(timeByDay.keys.toSet(), today);
+
+    bool did(String level, String topic, {int score = 0}) =>
+        practices.any((s) => s.level == level && s.topic == topic && s.score >= score);
+
+    final games = [
+      for (final (emoji, name, look) in _games)
+        () {
+          final played = sessions.where((s) => s.isGame && s.topic == name).toList();
+          final best = played.fold(0, (b, s) => s.stars > b ? s.stars : b);
+          return GameProgress(emoji, name, best, played.length, look);
+        }(),
+    ];
+
+    return ProgressData(
+      stars: sessions.fold(0, (sum, s) => sum + s.stars),
+      dayStreak: streak,
+      wordsSaid: wordsSaid,
+      daysThisWeek: daysThisWeek,
+      week: week,
+      todayIndex: today.weekday - 1,
+      levels: [
+        for (final (look, topics) in _levels)
+          LevelProgress(
+            look.letter,
+            look.name,
+            topics.where((t) => did(look.name, t)).length,
+            topics.length,
+            look.color,
+            look.darkColor,
+          ),
+      ],
+      games: games,
+      badges: [
+        ProgressBadge('🌱', 'First Word', practices.any((s) => s.wordsSaid > 0)),
+        ProgressBadge('🔤', 'ABC Star', did('Beginner', 'Alphabets', score: ScoreBand.pass)),
+        ProgressBadge('🔥', '5 Day Streak', _bestStreak(timeByDay.keys.toSet()) >= 5),
+        ProgressBadge('🐍', 'S Sound', did('Special Sound', 'Sound S', score: ScoreBand.great)),
+        ProgressBadge('🦁', 'L Sound', did('Special Sound', 'Sound L', score: ScoreBand.great)),
+        ProgressBadge('🎮', 'Game Fan', games.every((g) => g.plays > 0)),
+        ProgressBadge('🏆', 'Super Talker', wordsSaid >= 100),
+      ],
+    );
+  }
+
+  static DateTime _day(DateTime t) => DateTime(t.year, t.month, t.day);
+
+  /// Days in a row up to today (or yesterday, if today is not done yet).
+  static int _streak(Set<DateTime> days, DateTime today) {
+    var day = days.contains(today) ? today : today.subtract(const Duration(days: 1));
+    var count = 0;
+    while (days.contains(day)) {
+      count++;
+      day = _day(day.subtract(const Duration(hours: 12)));
+    }
+    return count;
+  }
+
+  /// Most days in a row ever.
+  static int _bestStreak(Set<DateTime> days) {
+    var best = 0;
+    for (final day in days) {
+      // Count only from the first day of each run.
+      if (days.contains(_day(day.subtract(const Duration(hours: 12))))) continue;
+      var count = 0;
+      var d = day;
+      while (days.contains(d)) {
+        count++;
+        d = _day(d.add(const Duration(hours: 36)));
+      }
+      if (count > best) best = count;
+    }
+    return best;
+  }
 }
 
 class ProgressPage extends StatefulWidget {
@@ -91,7 +207,29 @@ class _ProgressPageState extends State<ProgressPage> {
   static const Color _soft = Color(0xFF7A6A85);
   static const List<String> _days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-  final ProgressData data = ProgressData.sample;
+  ProgressData data = ProgressData.fromSessions(const []);
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    List<SessionRecord> sessions;
+    try {
+      sessions = await ProgressStore.instance.sessions();
+    } catch (e) {
+      debugPrint('[Progress] could not load: $e');
+      sessions = const [];
+    }
+    if (!mounted) return;
+    setState(() {
+      data = ProgressData.fromSessions(sessions);
+      isLoading = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -123,47 +261,78 @@ class _ProgressPageState extends State<ProgressPage> {
                           ],
                         ),
                         const SizedBox(height: 16),
-                        _buildDinoCard(),
-                        const SizedBox(height: 20),
-                        Row(
-                          children: [
-                            _buildStatTile('⭐', '${data.stars}', 'Stars',
-                                const Color(0xFFFFF3D6), const Color(0xFFFFCC80)),
-                            const SizedBox(width: 12),
-                            _buildStatTile('🔥', '${data.dayStreak}', 'Day streak',
-                                const Color(0xFFFFE0E6), const Color(0xFFF48FB1)),
-                            const SizedBox(width: 12),
-                            _buildStatTile('🗣️', '${data.wordsSaid}', 'Words said',
-                                const Color(0xFFE3F2FD), const Color(0xFF90CAF9)),
-                          ],
-                        ),
-                        _buildSectionTitle('My levels 🦖'),
-                        _buildCard(
-                          Column(children: [for (final level in data.levels) _buildLevelBar(level)]),
-                        ),
-                        _buildSectionTitle('This week 📅'),
-                        _buildCard(
-                          SizedBox(
-                            height: 120,
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceAround,
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                for (var i = 0; i < _days.length; i++)
-                                  _buildDayBar(_days[i], data.week[i], i == data.todayIndex),
-                              ],
+                        if (isLoading)
+                          const Padding(
+                            padding: EdgeInsets.only(top: 120),
+                            child: Center(child: CircularProgressIndicator(color: _teal)),
+                          )
+                        else ...[
+                          _buildDinoCard(),
+                          const SizedBox(height: 20),
+                          Row(
+                            children: [
+                              _buildStatTile(
+                                '⭐',
+                                '${data.stars}',
+                                'Stars',
+                                const Color(0xFFFFF3D6),
+                                const Color(0xFFFFCC80),
+                              ),
+                              const SizedBox(width: 12),
+                              _buildStatTile(
+                                '🔥',
+                                '${data.dayStreak}',
+                                'Day streak',
+                                const Color(0xFFFFE0E6),
+                                const Color(0xFFF48FB1),
+                              ),
+                              const SizedBox(width: 12),
+                              _buildStatTile(
+                                '🗣️',
+                                '${data.wordsSaid}',
+                                'Words said',
+                                const Color(0xFFE3F2FD),
+                                const Color(0xFF90CAF9),
+                              ),
+                            ],
+                          ),
+                          _buildSectionTitle('My levels 🦖'),
+                          _buildCard(Column(children: [for (final level in data.levels) _buildLevelBar(level)])),
+                          _buildSectionTitle('My games 🎮'),
+                          GridView.count(
+                            crossAxisCount: 3,
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            padding: EdgeInsets.zero,
+                            mainAxisSpacing: 10,
+                            crossAxisSpacing: 10,
+                            childAspectRatio: 0.98,
+                            children: [for (final game in data.games) _buildGame(game)],
+                          ),
+                          _buildSectionTitle('This week 📅'),
+                          _buildCard(
+                            SizedBox(
+                              height: 120,
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  for (var i = 0; i < _days.length; i++)
+                                    _buildDayBar(_days[i], data.week[i], i == data.todayIndex),
+                                ],
+                              ),
                             ),
                           ),
-                        ),
-                        _buildSectionTitle('My badges 🏅'),
-                        _buildCard(
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 12,
-                            alignment: WrapAlignment.spaceAround,
-                            children: [for (final badge in data.badges) _buildBadge(badge)],
+                          _buildSectionTitle('My badges 🏅'),
+                          _buildCard(
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 12,
+                              alignment: WrapAlignment.spaceAround,
+                              children: [for (final badge in data.badges) _buildBadge(badge)],
+                            ),
                           ),
-                        ),
+                        ],
                       ],
                     ),
                   ),
@@ -205,10 +374,7 @@ class _ProgressPageState extends State<ProgressPage> {
             width: 110,
             height: 110,
             padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.85),
-              shape: BoxShape.circle,
-            ),
+            decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.85), shape: BoxShape.circle),
             child: const DinoMascot(color: Color(0xFF80CBC4), size: 94),
           ),
           const SizedBox(width: 8),
@@ -216,25 +382,73 @@ class _ProgressPageState extends State<ProgressPage> {
           Expanded(
             child: Container(
               padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-              ),
+              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Great job! 🌟',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: _tealDark),
+                  Text(
+                    data.daysThisWeek == 0 ? 'Hello! 👋' : 'Great job! 🌟',
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: _tealDark),
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${CurrentKid.name ?? data.kidName} practised ${data.daysThisWeek} days this week!',
+                    _dinoMessage,
                     style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF5D4E6D)),
                   ),
                 ],
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String get _dinoMessage {
+    final name = CurrentKid.name ?? 'You';
+    final days = data.daysThisWeek;
+    if (days == 0) return "Let's practise with Dino today! 🦖";
+    return '$name practised ${days == 1 ? '1 day' : '$days days'} this week!';
+  }
+
+  Widget _buildGame(GameProgress game) {
+    final played = game.plays > 0;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+      decoration: BoxDecoration(
+        color: game.look.lightColor,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: game.look.edgeColor, width: 2.5),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Opacity(
+            opacity: played ? 1 : 0.5,
+            child: Text(game.emoji, style: const TextStyle(fontSize: 28)),
+          ),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              game.name,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: _ink),
+            ),
+          ),
+          const SizedBox(height: 2),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              for (var i = 0; i < 5; i++)
+                Opacity(
+                  opacity: i < game.bestStars ? 1 : 0.2,
+                  child: const Text('⭐', style: TextStyle(fontSize: 11)),
+                ),
+            ],
+          ),
+          Text(
+            played ? 'played ${game.plays}×' : 'not yet',
+            style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: _soft),
           ),
         ],
       ),
@@ -254,8 +468,14 @@ class _ProgressPageState extends State<ProgressPage> {
         child: Column(
           children: [
             Text(emoji, style: const TextStyle(fontSize: 28)),
-            Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: _ink)),
-            Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: _soft)),
+            Text(
+              value,
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: _ink),
+            ),
+            Text(
+              label,
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: _soft),
+            ),
           ],
         ),
       ),
@@ -329,17 +549,11 @@ class _ProgressPageState extends State<ProgressPage> {
                 Container(
                   height: 14,
                   alignment: Alignment.centerLeft,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF1EAF5),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
+                  decoration: BoxDecoration(color: const Color(0xFFF1EAF5), borderRadius: BorderRadius.circular(10)),
                   child: FractionallySizedBox(
                     widthFactor: progress,
                     child: Container(
-                      decoration: BoxDecoration(
-                        color: level.color,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
+                      decoration: BoxDecoration(color: level.color, borderRadius: BorderRadius.circular(10)),
                     ),
                   ),
                 ),
@@ -383,10 +597,7 @@ class _ProgressPageState extends State<ProgressPage> {
           decoration: BoxDecoration(
             color: badge.earned ? const Color(0xFFFFF3D6) : const Color(0xFFEEEEEE),
             shape: BoxShape.circle,
-            border: Border.all(
-              color: badge.earned ? const Color(0xFFFFCC80) : const Color(0xFFDDDDDD),
-              width: 3,
-            ),
+            border: Border.all(color: badge.earned ? const Color(0xFFFFCC80) : const Color(0xFFDDDDDD), width: 3),
           ),
           child: Opacity(
             opacity: badge.earned ? 1 : 0.3,
@@ -412,19 +623,13 @@ class _ProgressPageState extends State<ProgressPage> {
         goToKidsHome(context);
         break;
       case KidsTab.game:
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const GamePage()),
-        );
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const GamePage()));
         break;
       case KidsTab.progress:
         // Already on this page
         break;
       case KidsTab.profile:
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const ProfilePage()),
-        );
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const ProfilePage()));
         break;
     }
   }

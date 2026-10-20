@@ -4,11 +4,12 @@ import 'package:talkiepal/practice/widgets/practice_scaffold.dart';
 import 'package:talkiepal/practice/widgets/result_widgets.dart';
 import 'package:talkiepal/practice/widgets/score_dialog.dart';
 import 'package:talkiepal/services/current_kid.dart';
+import 'package:talkiepal/services/progress_store.dart';
 import 'package:talkiepal/widgets/dino_mascot.dart';
 
 /// Results at the end of a practice: stars and overall score for the child,
 /// and every word with its score and tries for parents and therapists.
-class ResultPage extends StatelessWidget {
+class ResultPage extends StatefulWidget {
   final PracticeSession session;
   final PracticeLook look;
 
@@ -20,8 +21,24 @@ class ResultPage extends StatelessWidget {
 
   const ResultPage({super.key, required this.session, required this.look, required this.title, this.practiseAgain});
 
+  @override
+  State<ResultPage> createState() => _ResultPageState();
+}
+
+class _ResultPageState extends State<ResultPage> {
   static const Color _green = Color(0xFF2BB673);
   static const Color _pink = Color(0xFFEC407A);
+
+  PracticeSession get session => widget.session;
+  PracticeLook get look => widget.look;
+  String get title => widget.title;
+
+  @override
+  void initState() {
+    super.initState();
+    // Saved for the Progress pages.
+    ProgressStore.instance.save(SessionRecord.fromPractice(session, level: look.name, topic: title));
+  }
 
   String get _cheer {
     final name = CurrentKid.name;
@@ -120,7 +137,7 @@ class ResultPage extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 16),
-          if (hard.isNotEmpty && practiseAgain != null) ...[
+          if (hard.isNotEmpty && widget.practiseAgain != null) ...[
             ResultButton(
               label: hard.length == 1
                   ? '🔁 PRACTISE THE HARD ONE'
@@ -128,14 +145,14 @@ class ResultPage extends StatelessWidget {
               filled: true,
               onTap: () => Navigator.pushReplacement(
                 context,
-                MaterialPageRoute(builder: (_) => practiseAgain!(hard.map((i) => i.label).toList())),
+                MaterialPageRoute(builder: (_) => widget.practiseAgain!(hard.map((i) => i.label).toList())),
               ),
             ),
             const SizedBox(height: 12),
           ],
           ResultButton(
             label: '🏠 DONE',
-            filled: hard.isEmpty || practiseAgain == null,
+            filled: hard.isEmpty || widget.practiseAgain == null,
             onTap: () => Navigator.pop(context),
           ),
         ],

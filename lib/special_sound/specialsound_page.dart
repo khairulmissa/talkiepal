@@ -36,6 +36,12 @@ class SpecialSoundPage extends StatelessWidget {
     _Sound('W', '💧', 'The Woo Sound - Round your lips'),
   ];
 
+  /// Every topic of this level (words and mini challenge for each sound),
+  /// as named on the results screen.
+  static List<String> get topics => [
+        for (final s in [..._level1, ..._level2]) ...['Sound ${s.sound}', 'Mini Challenge ${s.sound}'],
+      ];
+
   LevelTopic _soundTile(_Sound sound) {
     return LevelTopic(
       emoji: sound.emoji,

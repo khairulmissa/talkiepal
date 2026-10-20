@@ -25,6 +25,9 @@ class IntermediatePage extends StatelessWidget {
     'Places Around Town': '🏙️',
   };
 
+  /// Every topic of this level, as named on the results screen.
+  static List<String> get topics => _aiTopics.keys.toList();
+
   @override
   Widget build(BuildContext context) {
     return LevelMenuPage(
