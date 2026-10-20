@@ -73,7 +73,7 @@ class _HelloDinoScreenState extends State<HelloDinoScreen> with TickerProviderSt
   Future<void> _say(String text, {Duration shortest = const Duration(milliseconds: 900)}) async {
     Future<void> voice() async {
       try {
-        await SpeechService.instance.speak(text).timeout(const Duration(seconds: 4));
+        await SpeechService.instance.speak(text, cheerful: true).timeout(const Duration(seconds: 4));
       } catch (_) {
         // No voice: the bubble still shows.
       }
@@ -87,15 +87,15 @@ class _HelloDinoScreenState extends State<HelloDinoScreen> with TickerProviderSt
     if (!mounted || _left) return;
 
     setState(() => step = _Step.hello);
-    await _say('Hi ${widget.name}!');
+    await _say('Hiii ${widget.name}!');
     if (!mounted || _left) return;
 
     setState(() => step = _Step.ready);
-    await _say('Ready to practise?');
+    await _say('Are you ready to practise? Yay!');
     if (!mounted || _left) return;
 
     setState(() => step = _Step.go);
-    await Future.delayed(const Duration(milliseconds: 500));
+    await _say('Let\'s go!', shortest: const Duration(milliseconds: 600));
     if (!mounted || _left) return;
     await _out.forward();
     _leave();
