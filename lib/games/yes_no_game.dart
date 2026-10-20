@@ -18,8 +18,9 @@ class _Round {
   bool get isYes => askedWord == picture.word;
 }
 
-/// Yes or No?: Dino shows a picture and asks "Is it a CAT?".
-/// The child taps YES or NO. The words come from the AI backend.
+/// Yes or No?: Dino shows a picture with one word under it, e.g. a cat
+/// and DOG. The child taps YES when the word matches the picture, NO when
+/// it does not. The words come from the AI backend.
 class YesNoGame extends StatefulWidget {
   final int rounds;
 
@@ -49,11 +50,8 @@ class _YesNoGameState extends State<YesNoGame> {
   bool? wrongAnswer;
   bool isSolved = false;
 
-  // Index of the question word lit up during LISTEN (-1 = none).
-  int highlightedWord = -1;
-
-  // Bumped whenever the round changes, so an old highlight run stops.
-  int _highlightRun = 0;
+  // Bumped whenever the round changes, so an old sound run stops.
+  int _playRun = 0;
 
   // Right on the first try or not, for the results screen.
   FirstTryScore _score = FirstTryScore();
@@ -117,31 +115,20 @@ class _YesNoGameState extends State<YesNoGame> {
     return others[_random.nextInt(others.length)].word;
   }
 
-  /// "Is it a CAT?", "Is it an APPLE?" or "Are they SHOES?"
-  String _question(String word) {
-    final isPlural = word.endsWith('S') && !word.endsWith('SS') && !word.endsWith('US');
-    if (isPlural) return 'Are they $word?';
-    final article = 'AEIOU'.contains(word[0]) ? 'an' : 'a';
-    return 'Is it $article $word?';
-  }
-
   void _scoreRound() {
     if (rounds.isEmpty) return;
     final round = currentRound;
     _score.newRound(
       lead: round.picture.emoji,
-      label: _question(round.askedWord),
+      label: round.askedWord,
       answer: round.isYes ? 'YES' : 'NO',
     );
   }
 
-  List<String> get questionWords => _question(currentRound.askedWord).split(' ');
-
   // Call inside setState.
   void _resetRound() {
     SpeechService.instance.stop();
-    _highlightRun++;
-    highlightedWord = -1;
+    _playRun++;
     isPlaying = false;
     isSolved = false;
     wrongAnswer = null;
@@ -149,23 +136,16 @@ class _YesNoGameState extends State<YesNoGame> {
 
   Future<void> _onListen() async {
     if (isPlaying) return;
-    final run = ++_highlightRun;
+    final run = ++_playRun;
     setState(() {
       isPlaying = true;
     });
 
-    // One word at a time, each lit as it is said.
-    await speakWordByWord(
-      toSpoken(_question(currentRound.askedWord)),
-      keepGoing: () => mounted && run == _highlightRun,
-      onWord: (i) => setState(() {
-        highlightedWord = i;
-      }),
-    );
+    // Just the word; it is lit while Dino says it.
+    await SpeechService.instance.speak(toSpoken(currentRound.askedWord));
 
-    if (!mounted || run != _highlightRun) return;
+    if (!mounted || run != _playRun) return;
     setState(() {
-      highlightedWord = -1;
       isPlaying = false;
     });
   }
@@ -175,8 +155,7 @@ class _YesNoGameState extends State<YesNoGame> {
     SpeechService.instance.stop();
 
     setState(() {
-      _highlightRun++;
-      highlightedWord = -1;
+      _playRun++;
       isPlaying = false;
 
       if (saidYes == currentRound.isYes) {
@@ -233,7 +212,7 @@ class _YesNoGameState extends State<YesNoGame> {
       stars: stars,
       current: hasGame ? currentIndex + 1 : 0,
       total: rounds.length,
-      dinoTip: isSolved ? 'Yay! You got it! 🎉' : 'Look at the picture. Is it true? Say YES or NO!',
+      dinoTip: isSolved ? 'Yay! You got it! 🎉' : 'Look at the picture. Does the word match? YES or NO!',
       isLoading: isLoading,
       loadingText: 'Dino is picking new pictures... ✨',
       children: hasGame ? _buildGame() : [_buildNoWords()],
@@ -243,7 +222,6 @@ class _YesNoGameState extends State<YesNoGame> {
   List<Widget> _buildGame() {
     final round = currentRound;
     final isLast = currentIndex == rounds.length - 1;
-    final words = questionWords;
 
     final Color cardColor = isSolved ? _yesColor : (wrongAnswer != null ? _noColor : _look.color);
     final Color cardEdge = isSolved ? _yesDark : (wrongAnswer != null ? _noDark : _look.darkColor);
@@ -263,15 +241,7 @@ class _YesNoGameState extends State<YesNoGame> {
           children: [
             BigEmoji(emoji: round.picture.emoji, background: _look.lightColor),
             const SizedBox(height: 14),
-            Wrap(
-              alignment: WrapAlignment.center,
-              spacing: 2,
-              runSpacing: 4,
-              children: [
-                for (var i = 0; i < words.length; i++)
-                  WordChip(text: words[i], isLit: i == highlightedWord, litColor: PracticeColors.listen, size: 26),
-              ],
-            ),
+            WordChip(text: round.askedWord, isLit: isPlaying, litColor: PracticeColors.listen, size: 34),
             const SizedBox(height: 12),
             SizedBox(
               width: 180,

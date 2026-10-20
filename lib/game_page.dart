@@ -51,7 +51,7 @@ class _GamePageState extends State<GamePage> {
         Color(0xFFE3F2FD), Color(0xFF90CAF9), Color(0xFF1E88E5), page: _soundMatcherPage),
     _Game('👂', 'Minimal Pairs', 'Cat or Rat?', '👂 Listen',
         Color(0xFFFFE0E6), Color(0xFFF48FB1), Color(0xFFD81B60), page: _minimalPairsPage),
-    _Game('👍', 'Yes or No?', 'Is it a cat?', '🧠 Think',
+    _Game('👍', 'Yes or No?', 'Does it match?', '🧠 Think',
         Color(0xFFE8F5E9), Color(0xFFA5D6A7), Color(0xFF43A047), page: _yesNoPage),
     _Game('🦕', 'Feed the Dino', 'Dino is hungry!', '🍎 Words',
         Color(0xFFFFF3D6), Color(0xFFFFCC80), Color(0xFFF57C00), page: _feedDinoPage),
