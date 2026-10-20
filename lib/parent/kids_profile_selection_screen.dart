@@ -4,6 +4,7 @@ import 'add_child_profile_screen.dart';
 import '../main.dart';
 import '../services/current_kid.dart';
 import '../services/progress_store.dart';
+import '../widgets/hello_dino.dart';
 import '../widgets/kids_bottom_nav.dart';
 import 'widgets/entry_ui.dart';
 
@@ -66,13 +67,22 @@ class _KidsProfileSelectionScreenState extends State<KidsProfileSelectionScreen>
     _load();
   }
 
-  void _openChild(ChildProfile child) {
+  /// Dino says hello in the card's colour, then the kids Home opens.
+  void _openChild(ChildProfile child, Color dinoColor) {
     CurrentKid.select(name: child.name, id: child.id, photo: child.photo);
     Navigator.push(
       context,
       MaterialPageRoute(
-        settings: const RouteSettings(name: kidsHomeRouteName),
-        builder: (_) => HomePage(selectedKidName: child.name),
+        builder: (_) => HelloDinoScreen(
+          name: child.name.trim(),
+          color: dinoColor,
+          next: () => PageRouteBuilder(
+            settings: const RouteSettings(name: kidsHomeRouteName),
+            transitionDuration: const Duration(milliseconds: 400),
+            pageBuilder: (_, _, _) => HomePage(selectedKidName: child.name),
+            transitionsBuilder: (_, animation, _, page) => FadeTransition(opacity: animation, child: page),
+          ),
+        ),
       ),
     );
   }
@@ -149,7 +159,7 @@ class _KidsProfileSelectionScreenState extends State<KidsProfileSelectionScreen>
                         _KidCard(
                           child: children[i],
                           colors: _colors[i % _colors.length],
-                          onTap: () => _openChild(children[i]),
+                          onTap: () => _openChild(children[i], _colors[i % _colors.length][1]),
                         ),
                       if (children.length < 5) _AddCard(onTap: _addChild),
                     ],
