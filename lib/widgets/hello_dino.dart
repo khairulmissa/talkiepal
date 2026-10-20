@@ -68,9 +68,12 @@ class _HelloDinoScreenState extends State<HelloDinoScreen> with TickerProviderSt
     _run();
   }
 
-  /// Says [text] and keeps the bubble up for at least [shortest], so it can
-  /// be read. Waits at most 4 seconds in case the voice hangs.
-  Future<void> _say(String text, {Duration shortest = const Duration(milliseconds: 900)}) async {
+  /// Quiet moment after each line, so Dino does not rush from one to the next.
+  static const Duration _gap = Duration(milliseconds: 1200);
+
+  /// Says [text], keeps the bubble up for at least [shortest] so it can be
+  /// read, then pauses for [gap]. Waits at most 4 seconds in case the voice hangs.
+  Future<void> _say(String text, {Duration shortest = const Duration(milliseconds: 900), Duration gap = _gap}) async {
     Future<void> voice() async {
       try {
         await SpeechService.instance.speak(text, cheerful: true).timeout(const Duration(seconds: 4));
@@ -80,6 +83,7 @@ class _HelloDinoScreenState extends State<HelloDinoScreen> with TickerProviderSt
     }
 
     await Future.wait([voice(), Future.delayed(shortest)]);
+    if (mounted && !_left) await Future.delayed(gap);
   }
 
   Future<void> _run() async {
@@ -87,7 +91,7 @@ class _HelloDinoScreenState extends State<HelloDinoScreen> with TickerProviderSt
     if (!mounted || _left) return;
 
     setState(() => step = _Step.hello);
-    await _say('Hiii ${widget.name}!');
+    await _say('Hiii!');
     if (!mounted || _left) return;
 
     setState(() => step = _Step.ready);
@@ -95,7 +99,7 @@ class _HelloDinoScreenState extends State<HelloDinoScreen> with TickerProviderSt
     if (!mounted || _left) return;
 
     setState(() => step = _Step.go);
-    await _say('Let\'s go!', shortest: const Duration(milliseconds: 600));
+    await _say('Let\'s go!', shortest: const Duration(milliseconds: 600), gap: const Duration(milliseconds: 600));
     if (!mounted || _left) return;
     await _out.forward();
     _leave();
