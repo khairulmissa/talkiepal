@@ -306,7 +306,7 @@ class _ProgressPageState extends State<ProgressPage> {
                             padding: EdgeInsets.zero,
                             mainAxisSpacing: 10,
                             crossAxisSpacing: 10,
-                            childAspectRatio: 0.98,
+                            childAspectRatio: 0.92,
                             children: [for (final game in data.games) _buildGame(game)],
                           ),
                           _buildSectionTitle('This week 📅'),
@@ -421,36 +421,37 @@ class _ProgressPageState extends State<ProgressPage> {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: game.look.edgeColor, width: 2.5),
       ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Opacity(
-            opacity: played ? 1 : 0.5,
-            child: Text(game.emoji, style: const TextStyle(fontSize: 28)),
-          ),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text(
+      // Shrinks to fit on small phones or with large text.
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Opacity(
+              opacity: played ? 1 : 0.5,
+              child: Text(game.emoji, style: const TextStyle(fontSize: 28)),
+            ),
+            Text(
               game.name,
               style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: _ink),
             ),
-          ),
-          const SizedBox(height: 2),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              for (var i = 0; i < 5; i++)
-                Opacity(
-                  opacity: i < game.bestStars ? 1 : 0.2,
-                  child: const Text('⭐', style: TextStyle(fontSize: 11)),
-                ),
-            ],
-          ),
-          Text(
-            played ? 'played ${game.plays}×' : 'not yet',
-            style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: _soft),
-          ),
-        ],
+            const SizedBox(height: 2),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                for (var i = 0; i < 5; i++)
+                  Opacity(
+                    opacity: i < game.bestStars ? 1 : 0.2,
+                    child: const Text('⭐', style: TextStyle(fontSize: 11)),
+                  ),
+              ],
+            ),
+            Text(
+              played ? 'played ${game.plays}×' : 'not yet',
+              style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: _soft),
+            ),
+          ],
+        ),
       ),
     );
   }
