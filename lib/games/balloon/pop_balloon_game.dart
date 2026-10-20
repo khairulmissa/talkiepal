@@ -4,10 +4,10 @@ import 'dart:math';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:talkiepal/games/balloon/balloon_world.dart';
+import 'package:talkiepal/games/game_result_page.dart';
 import 'package:talkiepal/games/game_words.dart';
 import 'package:talkiepal/games/widgets/game_scaffold.dart';
 import 'package:talkiepal/practice/widgets/practice_scaffold.dart';
-import 'package:talkiepal/practice/widgets/success_dialog.dart';
 import 'package:talkiepal/services/exercise_service.dart';
 import 'package:talkiepal/services/speech_service.dart';
 import 'package:talkiepal/widgets/dino_mascot.dart';
@@ -19,6 +19,14 @@ class _LevelWords {
   final bool isOffline;
 
   const _LevelWords(this.targets, this.others, this.isOffline);
+}
+
+/// What the child popped for one sound, for the results screen.
+class _SoundScore {
+  int right = 0;
+  final List<String> wrong = [];
+
+  int get percent => right + wrong.length == 0 ? 0 : (right * 100 / (right + wrong.length)).round();
 }
 
 /// Pop the Balloon (Flame): balloons with words float up and the child pops
@@ -43,6 +51,15 @@ class _PopBalloonGameState extends State<PopBalloonGame> {
   // Sounds that are easy to spot in written words. One level each.
   static const List<String> _allSounds = ['S', 'R', 'L', 'SH', 'CH'];
 
+  // Sounds children often mix up with each other.
+  static const Map<String, List<String>> _soundsAlike = {
+    'S': ['SH'],
+    'SH': ['CH', 'S'],
+    'CH': ['SH'],
+    'R': ['L'],
+    'L': ['R'],
+  };
+
   // Backup words without the target sound, if the AI gives too few.
   static const List<String> _backupWords = [
     'CAT', 'DOG', 'MOON', 'BOOK', 'HAT', 'PEN', 'CUP', 'BED', 'EGG', 'FAN', 'KITE', 'DUCK', 'BOAT', 'TOY',
@@ -62,6 +79,10 @@ class _PopBalloonGameState extends State<PopBalloonGame> {
   String? message;
   bool messageIsWrong = false;
   Timer? _timer;
+
+  // Right and wrong pops for each sound, and when the game started.
+  final Map<String, _SoundScore> _scores = {};
+  DateTime _startedAt = DateTime.now();
 
   // Words for each level, loaded one level ahead while the child plays.
   final Map<int, Future<_LevelWords>> _levelWords = {};
@@ -90,6 +111,8 @@ class _PopBalloonGameState extends State<PopBalloonGame> {
     _otherWords = GameWords.load(count: 10, random: _random);
     sounds = [..._allSounds]..shuffle(_random);
     totalPopped = 0;
+    _scores.clear();
+    _startedAt = DateTime.now();
     _openLevel(0);
   }
 
@@ -169,6 +192,7 @@ class _PopBalloonGameState extends State<PopBalloonGame> {
       // Playing a level again does not count its earlier pops twice.
       totalPopped -= popped;
       popped = 0;
+      _scores[sound] = _SoundScore();
       secondsLeft = widget.seconds;
       message = null;
       phase = _Phase.playing;
@@ -191,6 +215,7 @@ class _PopBalloonGameState extends State<PopBalloonGame> {
     setState(() {
       popped++;
       totalPopped++;
+      _scores[sound]?.right++;
       message = '🎉 Yes! $word has the $sound sound!';
       messageIsWrong = false;
     });
@@ -199,6 +224,7 @@ class _PopBalloonGameState extends State<PopBalloonGame> {
 
   void _onWrong(String word) {
     if (phase != _Phase.playing) return;
+    _scores[sound]?.wrong.add(word);
     setState(() {
       message = 'Oops! $word has no $sound sound 🙈';
       messageIsWrong = true;
@@ -216,23 +242,63 @@ class _PopBalloonGameState extends State<PopBalloonGame> {
       return;
     }
 
-    var isLeaving = false;
     setState(() {
       phase = _Phase.won;
     });
 
-    showSuccessDialog(
+    Navigator.pushReplacement(
       context,
-      detail: 'You finished all ${sounds.length} sounds and popped $totalPopped balloons!',
-      nextLabel: 'FINISH →',
-      onNext: () {
-        isLeaving = true;
-        Navigator.pop(context);
-      },
-    ).then((_) {
-      // TRY AGAIN in the popup starts a new game from level 1.
-      if (mounted && !isLeaving) _newGame();
-    });
+      MaterialPageRoute(
+        builder: (_) => GameResultPage(
+          result: _result(),
+          playAgain: () => PopBalloonGame(goal: widget.goal, seconds: widget.seconds),
+        ),
+      ),
+    );
+  }
+
+  GameResult _result() {
+    final played = [for (final s in sounds) if (_scores[s] != null) (s, _scores[s]!)];
+    final right = played.fold(0, (sum, p) => sum + p.$2.right);
+    final wrong = played.fold(0, (sum, p) => sum + p.$2.wrong.length);
+
+    // A wrong word with a sound that is easy to mix up with this one,
+    // e.g. SOCK in the SH level.
+    final mixedUp = <String, int>{};
+    for (final (sound, score) in played) {
+      for (final word in score.wrong) {
+        final other = _soundsAlike[sound]?.where(word.contains).firstOrNull;
+        if (other == null) continue;
+        final pair = ([sound, other]..sort()).join(' ↔ ');
+        mixedUp[pair] = (mixedUp[pair] ?? 0) + 1;
+      }
+    }
+
+    return GameResult(
+      title: 'Pop the Balloon',
+      look: _look,
+      score: right + wrong == 0 ? 0 : (right * 100 / (right + wrong)).round(),
+      praise: 'Great popping',
+      win: '🎈 $right balloons popped!',
+      stats: [
+        GameStat('🎯', '$right/${right + wrong}', 'right pops'),
+        GameStat('💥', '$wrong', 'wrong pops'),
+        GameStat('⏱', gameTime(DateTime.now().difference(_startedAt)), 'time'),
+      ],
+      rows: [
+        for (final (sound, score) in played)
+          GameResultRow(
+            lead: sound,
+            label: 'Sound $sound',
+            detail: score.wrong.isEmpty
+                ? '${score.right} right · no wrong pops'
+                : '${score.right} right · popped ${score.wrong.toSet().join(', ')}',
+            pill: '${score.percent}%',
+            score: score.percent,
+          ),
+      ],
+      note: mixedUpNote(mixedUp),
+    );
   }
 
   void _onTimeUp() {

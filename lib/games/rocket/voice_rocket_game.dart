@@ -1,12 +1,13 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
+import 'package:talkiepal/games/game_result_page.dart';
 import 'package:talkiepal/games/rocket/rocket_world.dart';
 import 'package:talkiepal/games/rocket/voice_input.dart';
 import 'package:talkiepal/games/widgets/game_scaffold.dart';
 import 'package:talkiepal/practice/widgets/practice_scaffold.dart';
-import 'package:talkiepal/practice/widgets/success_dialog.dart';
 import 'package:talkiepal/widgets/dino_mascot.dart';
 
 /// One level: where the rocket flies and the sound that makes it fly.
@@ -16,6 +17,17 @@ class _Level {
   final String sound;
 
   const _Level(this.emoji, this.place, this.sound);
+}
+
+/// How the child did on one level, for the results screen.
+class _LevelScore {
+  int tries = 1;
+
+  /// Seconds the child kept the sound going, at most.
+  double longestVoice = 0;
+
+  /// Seconds it took to reach the place.
+  int flightTime = 0;
 }
 
 /// Voice Rocket (Flame): the child holds the button and makes a long, loud
@@ -65,6 +77,10 @@ class _VoiceRocketGameState extends State<VoiceRocketGame> {
   bool isHolding = false;
   double loudness = 0;
 
+  // Stars and the longest voice for each level, and when the game started.
+  final Map<int, _LevelScore> _scores = {};
+  final DateTime _startedAt = DateTime.now();
+
   // Loudness needed to fly, set from the room noise so a noisy room still works.
   double threshold = 0.35;
   final List<double> _roomNoise = [];
@@ -93,6 +109,7 @@ class _VoiceRocketGameState extends State<VoiceRocketGame> {
     setState(() {
       level = i;
       starsThisLevel = 0;
+      _scores.putIfAbsent(i, _LevelScore.new);
       isHolding = false;
       game = RocketGame(
         destination: _levels[i].emoji,
@@ -173,6 +190,13 @@ class _VoiceRocketGameState extends State<VoiceRocketGame> {
     g.isThrusting = phase == _Phase.playing && isHolding && isLoudEnough;
   }
 
+  /// Keeps the longest sound of this level for the results screen.
+  void _endVoice() {
+    final score = _scores[level];
+    final g = game;
+    if (score != null && g != null && g.longestSound > score.longestVoice) score.longestVoice = g.longestSound;
+  }
+
   void _onStar() {
     if (!mounted) return;
     setState(() {
@@ -184,6 +208,8 @@ class _VoiceRocketGameState extends State<VoiceRocketGame> {
   void _onArrived() {
     if (!mounted) return;
     _timer?.cancel();
+    _endVoice();
+    _scores[level]?.flightTime = widget.seconds - secondsLeft;
     if (!isLastLevel) {
       setState(() {
         phase = _Phase.levelDone;
@@ -192,29 +218,63 @@ class _VoiceRocketGameState extends State<VoiceRocketGame> {
       return;
     }
 
-    var isLeaving = false;
     setState(() {
       phase = _Phase.won;
       isHolding = false;
     });
 
-    showSuccessDialog(
+    Navigator.pushReplacement(
       context,
-      detail: 'You flew to all ${_levels.length} places and got $stars stars!',
-      nextLabel: 'FINISH →',
-      onNext: () {
-        isLeaving = true;
-        Navigator.pop(context);
-      },
-    ).then((_) {
-      // TRY AGAIN in the popup starts again from the Moon.
-      if (mounted && !isLeaving) {
-        setState(() {
-          stars = 0;
-        });
-        _openLevel(0);
-      }
-    });
+      MaterialPageRoute(
+        builder: (_) => GameResultPage(
+          result: _result(),
+          playAgain: () => VoiceRocketGame(seconds: widget.seconds, voiceInput: widget.voiceInput),
+        ),
+      ),
+    );
+  }
+
+  /// The longest voice for each level. No speaking score: this game is
+  /// only about a long, strong voice, and every level ends with all stars.
+  GameResult _result() {
+    String seconds(double s) => '${s.toStringAsFixed(1)} s';
+    // 3 seconds of voice is good, 2 is almost there.
+    int scoreFor(double voice) => voice >= 3 ? 100 : (voice >= 2 ? 75 : 40);
+
+    final played = [for (var i = 0; i < _levels.length; i++) if (_scores[i] != null) (_levels[i], _scores[i]!)];
+    final longest = played.fold(0.0, (best, p) => max(best, p.$2.longestVoice));
+
+    // The sound held for the shortest time is the one to practise.
+    final hardest = played.where((p) => p.$2.longestVoice < 3).toList()
+      ..sort((a, b) => a.$2.longestVoice.compareTo(b.$2.longestVoice));
+
+    return GameResult(
+      title: 'Voice Rocket',
+      look: _look,
+      score: (stars * 100 / (_levels.length * 3)).round().clamp(0, 100).toInt(),
+      praise: 'What a strong voice',
+      win: '${_levels.last.emoji} Flew all the way to ${_levels.last.place}!',
+      stats: [
+        GameStat('⭐', '$stars', 'stars'),
+        GameStat('🗣️', seconds(longest), 'longest voice'),
+        GameStat('⏱', gameTime(DateTime.now().difference(_startedAt)), 'time'),
+      ],
+      rows: [
+        for (final (lvl, score) in played)
+          GameResultRow(
+            lead: lvl.emoji,
+            label: '${lvl.sound} to ${lvl.place}',
+            detail: score.tries > 1
+                ? 'flew in ${score.flightTime} s · ${score.tries} tries'
+                : 'flew in ${score.flightTime} s',
+            pill: '🗣️ ${seconds(score.longestVoice)}',
+            score: scoreFor(score.longestVoice),
+          ),
+      ],
+      note: hardest.isEmpty
+          ? null
+          : ('💪 Harder: ', 'long ${hardest.first.$1.sound} (longest ${seconds(hardest.first.$2.longestVoice)})'),
+    );
   }
 
   /// Plays the same level again; its stars from the last try do not count twice.
@@ -222,6 +282,7 @@ class _VoiceRocketGameState extends State<VoiceRocketGame> {
     setState(() {
       stars -= starsThisLevel;
     });
+    _scores[level]?.tries++;
     _openLevel(level);
     _start();
   }
@@ -229,6 +290,7 @@ class _VoiceRocketGameState extends State<VoiceRocketGame> {
   void _onTimeUp() {
     _timer?.cancel();
     game?.stop();
+    _endVoice();
     setState(() {
       phase = _Phase.timeUp;
       isHolding = false;

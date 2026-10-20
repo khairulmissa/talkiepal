@@ -2,9 +2,9 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:talkiepal/games/game_words.dart';
+import 'package:talkiepal/games/game_result_page.dart';
 import 'package:talkiepal/games/widgets/game_scaffold.dart';
 import 'package:talkiepal/practice/widgets/practice_scaffold.dart';
-import 'package:talkiepal/practice/widgets/success_dialog.dart';
 import 'package:talkiepal/services/exercise_service.dart';
 import 'package:talkiepal/services/speech_service.dart';
 
@@ -55,6 +55,9 @@ class _YesNoGameState extends State<YesNoGame> {
   // Bumped whenever the round changes, so an old highlight run stops.
   int _highlightRun = 0;
 
+  // Right on the first try or not, for the results screen.
+  FirstTryScore _score = FirstTryScore();
+
   _Round get currentRound => rounds[currentIndex];
 
   @override
@@ -79,6 +82,8 @@ class _YesNoGameState extends State<YesNoGame> {
       rounds = _buildRounds(result.words);
       isLoading = false;
     });
+    _score = FirstTryScore();
+    _scoreRound();
 
     if (result.isOffline) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -118,6 +123,16 @@ class _YesNoGameState extends State<YesNoGame> {
     if (isPlural) return 'Are they $word?';
     final article = 'AEIOU'.contains(word[0]) ? 'an' : 'a';
     return 'Is it $article $word?';
+  }
+
+  void _scoreRound() {
+    if (rounds.isEmpty) return;
+    final round = currentRound;
+    _score.newRound(
+      lead: round.picture.emoji,
+      label: _question(round.askedWord),
+      answer: round.isYes ? 'YES' : 'NO',
+    );
   }
 
   List<String> get questionWords => _question(currentRound.askedWord).split(' ');
@@ -170,6 +185,7 @@ class _YesNoGameState extends State<YesNoGame> {
         if (wrongAnswer == null) stars++;
       } else {
         wrongAnswer = saidYes;
+        _score.wrong(saidYes ? 'YES' : 'NO');
       }
     });
   }
@@ -180,12 +196,23 @@ class _YesNoGameState extends State<YesNoGame> {
         currentIndex++;
         _resetRound();
       });
+      _scoreRound();
     } else {
-      showSuccessDialog(
+      Navigator.pushReplacement(
         context,
-        detail: 'You got $stars ⭐ out of ${rounds.length}!',
-        nextLabel: 'FINISH →',
-        onNext: () => Navigator.pop(context),
+        MaterialPageRoute(
+          builder: (_) => GameResultPage(
+            result: _score.result(
+              title: 'Yes or No',
+              look: _look,
+              praise: 'Great thinking',
+              emoji: '👍',
+              heard: 'answer',
+              picked: 'said',
+            ),
+            playAgain: () => YesNoGame(rounds: widget.rounds),
+          ),
+        ),
       );
     }
   }
