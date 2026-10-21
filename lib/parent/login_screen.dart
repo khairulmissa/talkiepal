@@ -1,11 +1,13 @@
-import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:google_sign_in/google_sign_in.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
-import 'register_screen.dart';
-import 'forgot_password_screen.dart';
+import '../therapist/therapist_dashboard.dart';
 import 'choose_role_screen.dart';
+import 'forgot_password_screen.dart';
+import 'register_screen.dart';
 import 'user_profile_service.dart';
 import 'widgets/entry_ui.dart';
 
@@ -34,23 +36,53 @@ class _LoginScreenState extends State<LoginScreen> {
     showEntryMessage(context, message);
   }
 
-  void goToNextScreen() {
+  Future<void> _completeLogin(User user) async {
+    // syncUser must preserve existing Firestore role and approval fields.
+    await UserProfileService.syncUser(user);
+
+    final snapshot = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .get();
+    final data = snapshot.data() ?? <String, dynamic>{};
     if (!mounted) return;
-    Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const ChooseRoleScreen()));
+
+    final role = data['role']?.toString().toLowerCase().trim();
+    if (role == 'therapist') {
+      final active = data['isActive'] == true;
+      final verified = data['verificationStatus']?.toString().toLowerCase() ==
+          'verified';
+      if (!active || !verified) {
+        showError('Your therapist account is not active or is awaiting verification.');
+        // Do not route unapproved therapists into parent mode.
+        await FirebaseAuth.instance.signOut();
+        return;
+      }
+      if (!mounted) return;
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const TherapistDashboard()),
+        (route) => false,
+      );
+      return;
+    }
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => const ChooseRoleScreen()),
+    );
   }
 
   Future<void> login() async {
-    if (!(formKey.currentState?.validate() ?? false)) return;
+    if (isLoading || !(formKey.currentState?.validate() ?? false)) return;
     setState(() => isLoading = true);
     try {
-      final signedIn = await FirebaseAuth.instance.signInWithEmailAndPassword(
+      final result = await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: emailController.text.trim(),
         password: passwordController.text,
       );
-      if (signedIn.user != null) {
-        await UserProfileService.syncUser(signedIn.user!);
-      }
-      goToNextScreen();
+      if (result.user == null) throw StateError('No user returned by Firebase.');
+      await _completeLogin(result.user!);
     } on FirebaseAuthException catch (e) {
       showError(_firebaseError(e));
     } catch (e) {
@@ -61,24 +93,23 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> loginWithGoogle() async {
+    if (isLoading) return;
     setState(() => isLoading = true);
     try {
       final googleSignIn = GoogleSignIn.instance;
       await googleSignIn.initialize(
-        serverClientId: '474037018699-a247c8o37ul98a1l87mis96d3fq9icku.apps.googleusercontent.com',
+        serverClientId:
+            '474037018699-a247c8o37ul98a1l87mis96d3fq9icku.apps.googleusercontent.com',
       );
       final googleUser = await googleSignIn.authenticate();
-      final googleAuth = googleUser.authentication;
-      final idToken = googleAuth.idToken;
+      final idToken = googleUser.authentication.idToken;
       if (idToken == null) {
         throw StateError('Google did not return an ID token. Check Firebase configuration.');
       }
       final credential = GoogleAuthProvider.credential(idToken: idToken);
-      final signedIn = await FirebaseAuth.instance.signInWithCredential(credential);
-      if (signedIn.user != null) {
-        await UserProfileService.syncUser(signedIn.user!);
-      }
-      goToNextScreen();
+      final result = await FirebaseAuth.instance.signInWithCredential(credential);
+      if (result.user == null) throw StateError('No user returned by Firebase.');
+      await _completeLogin(result.user!);
     } on FirebaseAuthException catch (e) {
       showError(_firebaseError(e));
     } catch (e) {
@@ -89,19 +120,22 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> loginWithFacebook() async {
+    if (isLoading) return;
     setState(() => isLoading = true);
     try {
-      final result = await FacebookAuth.instance.login(permissions: ['public_profile', 'email']);
+      final result = await FacebookAuth.instance.login(
+        permissions: ['public_profile', 'email'],
+      );
       if (result.status == LoginStatus.cancelled) return;
       if (result.status != LoginStatus.success || result.accessToken == null) {
         throw StateError(result.message ?? 'Facebook login was not completed.');
       }
-      final credential = FacebookAuthProvider.credential(result.accessToken!.tokenString);
+      final credential = FacebookAuthProvider.credential(
+        result.accessToken!.tokenString,
+      );
       final signedIn = await FirebaseAuth.instance.signInWithCredential(credential);
-      if (signedIn.user != null) {
-        await UserProfileService.syncUser(signedIn.user!);
-      }
-      goToNextScreen();
+      if (signedIn.user == null) throw StateError('No user returned by Firebase.');
+      await _completeLogin(signedIn.user!);
     } on FirebaseAuthException catch (e) {
       showError(_firebaseError(e));
     } catch (e) {
@@ -120,7 +154,7 @@ class _LoginScreenState extends State<LoginScreen> {
       case 'user-not-found':
         return 'Incorrect email or password, or no matching account.';
       case 'account-exists-with-different-credential':
-        return 'This email is linked to another sign-in method. Sign in using that method first.';
+        return 'This email is linked to another sign-in method.';
       case 'network-request-failed':
         return 'Network error. Check your internet connection.';
       case 'too-many-requests':
@@ -167,12 +201,19 @@ class _LoginScreenState extends State<LoginScreen> {
             child: GestureDetector(
               onTap: isLoading
                   ? null
-                  : () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ForgotPasswordScreen())),
+                  : () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const ForgotPasswordScreen()),
+                      ),
               child: const Padding(
                 padding: EdgeInsets.symmetric(vertical: 4),
                 child: Text(
                   'Forgot password?',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: EntryColors.orange),
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: EntryColors.orange,
+                  ),
                 ),
               ),
             ),
@@ -191,7 +232,10 @@ class _LoginScreenState extends State<LoginScreen> {
             link: 'Create account',
             onTap: isLoading
                 ? null
-                : () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RegisterScreen())),
+                : () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const RegisterScreen()),
+                    ),
           ),
         ],
       ),

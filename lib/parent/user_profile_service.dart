@@ -27,19 +27,26 @@ class UserProfileService {
     };
     if (!snapshot.exists) {
       data['createdAt'] = FieldValue.serverTimestamp();
+      data['role'] = 'parent';
     }
     await ref.set(data, SetOptions(merge: true));
   }
 
   /// Call from ChooseRoleScreen only after the user selects a role.
   static Future<void> saveRole(String role) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) throw StateError('Please sign in first.');
-    if (!{'parent', 'therapist', 'kid', 'admin'}.contains(role)) {
-      throw ArgumentError('Invalid role');
-    }
+  final user = FirebaseAuth.instance.currentUser;
+
+  if (user == null) {
+    throw StateError('Please sign in first.');
+  }
+
+  if (role != 'parent') {
+    throw StateError(
+      'Therapist and admin roles must be assigned by an administrator.',
+    );
+  }
     await FirebaseFirestore.instance.collection('users').doc(user.uid)
-        .set({'role': role, 'updatedAt': FieldValue.serverTimestamp()},
+        .set({'role': 'parent', 'updatedAt': FieldValue.serverTimestamp()},
              SetOptions(merge: true));
   }
 }
