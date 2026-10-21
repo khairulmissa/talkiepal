@@ -1,13 +1,13 @@
-
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+
+import 'widgets/entry_ui.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
 
   @override
-  State<ForgotPasswordScreen> createState() =>
-      _ForgotPasswordScreenState();
+  State<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
 }
 
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
@@ -32,60 +32,32 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     });
 
     try {
-      await FirebaseAuth.instance.sendPasswordResetEmail(
-        email: emailController.text.trim(),
-      );
+      await FirebaseAuth.instance.sendPasswordResetEmail(email: emailController.text.trim());
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'If this email is registered, a password reset link will be sent. Please check your inbox or spam folder.',
-          ),
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 5),
-        ),
+      showEntryMessage(
+        context,
+        'If this email is registered, a password reset link will be sent. Please check your inbox or spam folder.',
+        error: false,
+        duration: const Duration(seconds: 5),
       );
 
       Navigator.pop(context);
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
 
-      String message;
-
-      switch (e.code) {
-        case 'invalid-email':
-          message = 'Please enter a valid email address.';
-          break;
-        case 'too-many-requests':
-          message = 'Too many attempts. Please try again later.';
-          break;
-        case 'network-request-failed':
-          message = 'Network error. Check your internet connection.';
-          break;
-        case 'user-not-found':
-          message = 'No account found with this email.';
-          break;
-        default:
-          message = e.message ?? 'Unable to send password reset email.';
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-          backgroundColor: Colors.red,
-        ),
-      );
+      final message = switch (e.code) {
+        'invalid-email' => 'Please enter a valid email address.',
+        'too-many-requests' => 'Too many attempts. Please try again later.',
+        'network-request-failed' => 'Network error. Check your internet connection.',
+        'user-not-found' => 'No account found with this email.',
+        _ => e.message ?? 'Unable to send password reset email.',
+      };
+      showEntryMessage(context, message);
     } catch (e) {
       if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Something went wrong: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      showEntryMessage(context, 'Something went wrong: $e');
     } finally {
       if (mounted) {
         setState(() {
@@ -97,121 +69,55 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFFFFBF4),
-
-      appBar: AppBar(
-        backgroundColor: const Color(0xFFFFEFA8),
-        elevation: 0,
-        centerTitle: true,
-        title: const Text(
-          'Forgot Password',
-          style: TextStyle(
-            color: Colors.black,
-            fontWeight: FontWeight.bold,
+    return Form(
+      key: formKey,
+      child: EntryPage(
+        title: 'Forgot password?',
+        subtitle: 'Enter your email and we will send you a link to make a new password.',
+        back: true,
+        children: [
+          EntryField(
+            controller: emailController,
+            hint: 'Email',
+            icon: Icons.mail_outline_rounded,
+            enabled: !isLoading,
+            keyboardType: TextInputType.emailAddress,
+            validator: (value) {
+              final email = value?.trim() ?? '';
+              if (email.isEmpty) return 'Email is required';
+              if (!email.contains('@')) return 'Enter a valid email';
+              return null;
+            },
           ),
-        ),
-        iconTheme: const IconThemeData(
-          color: Colors.black,
-        ),
-      ),
-
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(25),
-        child: Form(
-          key: formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 40),
-
-              const Text(
-                'Enter your email address',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-
-              const SizedBox(height: 10),
-
-              const Text(
-                'Please enter your valid email account',
-                style: TextStyle(
-                  color: Colors.grey,
-                  fontSize: 14,
-                ),
-              ),
-
-              const SizedBox(height: 35),
-
-              TextFormField(
-                controller: emailController,
-                keyboardType: TextInputType.emailAddress,
-                enabled: !isLoading,
-                decoration: InputDecoration(
-                  hintText: 'Email',
-                  prefixIcon: const Icon(
-                    Icons.email_outlined,
-                  ),
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(30),
+          const SizedBox(height: 8),
+          EntryButton(label: 'Send reset link', onPressed: resetPassword, busy: isLoading),
+          const SizedBox(height: 18),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: EntryColors.field, borderRadius: BorderRadius.circular(14)),
+            child: const Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.info_outline_rounded, size: 18, color: EntryColors.soft),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Signed up with Google or Facebook? You do not have a TalkiePal password. '
+                    'Just log in with the same button again.',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: EntryColors.soft, height: 1.4),
                   ),
                 ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Email is required';
-                  }
-
-                  final email = value.trim();
-
-                  if (!RegExp(
-                    r'^[^\s@]+@[^\s@]+\.[^\s@]+$',
-                  ).hasMatch(email)) {
-                    return 'Enter a valid email';
-                  }
-
-                  return null;
-                },
-              ),
-
-              const SizedBox(height: 35),
-
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: isLoading ? null : resetPassword,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFD6D600),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(30),
-                    ),
-                  ),
-                  child: isLoading
-                      ? const SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
-                          ),
-                        )
-                      : const Text(
-                          'Confirm',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
+          const Spacer(),
+          const SizedBox(height: 16),
+          EntryLink(
+            text: 'Remembered it? ',
+            link: 'Back to log in',
+            onTap: isLoading ? null : () => Navigator.pop(context),
+          ),
+        ],
       ),
     );
   }

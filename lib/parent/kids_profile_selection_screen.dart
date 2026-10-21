@@ -1,171 +1,333 @@
-import 'dart:convert';
-import 'dart:typed_data';
-
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import 'add_child_profile_screen.dart';
 import '../main.dart';
+import '../services/current_kid.dart';
+import '../services/progress_store.dart';
+import '../widgets/hello_dino.dart';
+import '../widgets/kids_bottom_nav.dart';
+import 'widgets/entry_ui.dart';
 
-/// Parent must be signed in. Child profiles belong to that parent's account.
-class KidsProfileSelectionScreen extends StatelessWidget {
+/// "Who is playing today?": the child taps their own profile. Profiles
+/// belong to the signed-in parent's account.
+class KidsProfileSelectionScreen extends StatefulWidget {
   const KidsProfileSelectionScreen({super.key});
 
-  static const Color cream = Color(0xFFFFFBF4);
-  static const Color yellow = Color(0xFFFFEFA8);
-  static const Color purple = Color(0xFF8B5E9E);
+  @override
+  State<KidsProfileSelectionScreen> createState() => _KidsProfileSelectionScreenState();
+}
 
-  Uint8List? _photoBytes(dynamic raw) {
-    if (raw is! String || raw.isEmpty) return null;
+class _KidsProfileSelectionScreenState extends State<KidsProfileSelectionScreen> {
+  // Card colours, one per child: [background, bottom edge].
+  static const List<List<Color>> _colors = [
+    [Color(0xFFFBE08A), Color(0xFFDDA92A)],
+    [Color(0xFFB5E3DC), Color(0xFF5FAFA6)],
+    [Color(0xFFFFCBA8), Color(0xFFE8793A)],
+    [Color(0xFFF8C8DC), Color(0xFFD9779F)],
+    [Color(0xFFC9DDF9), Color(0xFF6E9BD8)],
+  ];
+
+  List<ChildProfile> children = [];
+  bool isLoading = true;
+  String? error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
     try {
-      // Accepts plain Base64 and data:image/jpeg;base64,...
-      final payload = raw.contains(',') ? raw.split(',').last : raw;
-      return base64Decode(payload);
-    } catch (_) {
-      return null;
+      final list = await ProgressStore.instance.children();
+      if (!mounted) return;
+      setState(() {
+        children = list;
+        isLoading = false;
+        error = null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        error = 'Unable to load profiles: $e';
+        isLoading = false;
+      });
     }
   }
 
-  Future<void> _addChild(BuildContext context) async {
+  Future<void> _addChild() async {
     final result = await Navigator.push<Object?>(
       context,
       MaterialPageRoute(builder: (_) => const AddChildProfileScreen()),
     );
-    if (!context.mounted) return;
+    if (!mounted) return;
     if (result is Map && result['findTherapist'] == true) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Child saved. Therapist search is available from the parent area.')),
-      );
+      showEntryMessage(context, 'Child saved. Therapist search is available from the parent area.', error: false);
     }
-    // StreamBuilder refreshes automatically after Firestore saves.
+    _load();
   }
 
-  void _openChild(BuildContext context, String childName) {
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (_) => HomePage(
-        selectedKidName: childName,
+  /// Dino says hello in the card's colour, then the kids Home opens.
+  void _openChild(ChildProfile child, Color dinoColor) {
+    CurrentKid.select(name: child.name, id: child.id, photo: child.photo);
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => HelloDinoScreen(
+          name: child.name.trim(),
+          color: dinoColor,
+          next: () => PageRouteBuilder(
+            settings: const RouteSettings(name: kidsHomeRouteName),
+            transitionDuration: const Duration(milliseconds: 400),
+            pageBuilder: (_, _, _) => HomePage(selectedKidName: child.name),
+            transitionsBuilder: (_, animation, _, page) => FadeTransition(opacity: animation, child: page),
+          ),
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    final parent = FirebaseAuth.instance.currentUser;
     return Scaffold(
-      backgroundColor: cream,
-      appBar: AppBar(
-        title: const Text('Choose Kids Profile'),
-        centerTitle: true,
-        backgroundColor: cream,
-      ),
-      body: parent == null
-          ? const Center(child: Padding(
-              padding: EdgeInsets.all(24),
-              child: Text('Ask your parent to sign in first to access your profiles.', textAlign: TextAlign.center),
-            ))
-          : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: FirebaseFirestore.instance
-                  .collection('users')
-                  .doc(parent.uid)
-                  .collection('children')
-                  .snapshots(),
-              builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return Center(child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Text('Unable to load profiles: ${snapshot.error}', textAlign: TextAlign.center),
-                  ));
-                }
-                if (!snapshot.hasData) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                final children = snapshot.data!.docs.toList()
-                  ..sort((a, b) => (a.data()['name'] ?? '').toString()
-                      .compareTo((b.data()['name'] ?? '').toString()));
-                return LayoutBuilder(builder: (context, constraints) {
-                  final columns = constraints.maxWidth >= 620 ? 4 : 2;
-                  return SingleChildScrollView(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
-                    child: Column(
-                      children: [
-                        const Icon(Icons.star_rounded, size: 65, color: yellow),
-                        const Text('CHOOSE KIDS\nPROFILE',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(fontSize: 29, fontWeight: FontWeight.w600,
-                                color: Color(0xFFD6BB00), height: 1.1)),
-                        const SizedBox(height: 28),
-                        if (children.isEmpty)
-                          const Padding(
-                            padding: EdgeInsets.only(bottom: 24),
-                            child: Text('No child profiles yet. Tap + to create one.', textAlign: TextAlign.center),
-                          ),
-                        GridView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: columns,
-                            mainAxisSpacing: 18,
-                            crossAxisSpacing: 16,
-                            childAspectRatio: 0.82,
-                          ),
-                          itemCount: children.length + (children.length < 5 ? 1 : 0),
-                          itemBuilder: (context, index) {
-                            if (index == children.length) {
-                              return InkWell(
-                                onTap: () => _addChild(context),
-                                borderRadius: BorderRadius.circular(16),
-                                child: Column(children: [
-                                  Expanded(child: Container(
-                                    width: double.infinity,
-                                    decoration: BoxDecoration(color: Colors.white,
-                                      borderRadius: BorderRadius.circular(16),
-                                      boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4)]),
-                                    child: const Icon(Icons.add, size: 54),
-                                  )),
-                                  const SizedBox(height: 8),
-                                  const Text('Add Child', style: TextStyle(fontWeight: FontWeight.w600)),
-                                ]),
-                              );
-                            }
-                            final child = children[index];
-                            final data = child.data();
-                            final name = (data['name'] ?? 'Child').toString();
-                            final bytes = _photoBytes(data['photoBase64']);
-                            return InkWell(
-                              onTap: () => _openChild(context, name),
-                              borderRadius: BorderRadius.circular(16),
-                              child: Column(children: [
-                                Expanded(child: Container(
-                                  width: double.infinity,
-                                  clipBehavior: Clip.antiAlias,
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFE0F1C0),
-                                    borderRadius: BorderRadius.circular(16),
-                                    boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4)],
-                                  ),
-                                  child: bytes == null
-                                      ? const Icon(Icons.child_care, size: 64, color: purple)
-                                      : Image.memory(bytes, fit: BoxFit.cover,
-                                          errorBuilder: (_, __, ___) => const Icon(Icons.child_care, size: 64)),
-                                )),
-                                const SizedBox(height: 8),
-                                Text(name, textAlign: TextAlign.center, maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(fontWeight: FontWeight.w700)),
-                              ]),
-                            );
-                          },
-                        ),
-                      ],
+      backgroundColor: EntryColors.cream,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back_rounded, color: EntryColors.ink),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                  const Spacer(),
+                  Image.asset(EntryLogo.icon, height: 46),
+                  const SizedBox(width: 4),
+                ],
+              ),
+              const SizedBox(height: 12),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 6),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Hi there! 👋',
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: EntryColors.orange),
                     ),
-                  );
-                });
-              },
+                    SizedBox(height: 2),
+                    Text(
+                      'Who is playing today?',
+                      style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: EntryColors.ink, height: 1.15),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'Tap your picture to start.',
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: EntryColors.soft),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 22),
+              if (isLoading)
+                const Padding(
+                  padding: EdgeInsets.only(top: 80),
+                  child: Center(child: CircularProgressIndicator(color: EntryColors.orange)),
+                )
+              else if (error != null)
+                Text(
+                  error!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.red),
+                )
+              else if (children.isEmpty)
+                _NoProfiles(onAdd: _addChild)
+              else
+                LayoutBuilder(
+                  builder: (context, constraints) => GridView.count(
+                    crossAxisCount: constraints.maxWidth >= 620 ? 4 : 2,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    mainAxisSpacing: 16,
+                    crossAxisSpacing: 14,
+                    childAspectRatio: 0.8,
+                    children: [
+                      for (var i = 0; i < children.length; i++)
+                        _KidCard(
+                          child: children[i],
+                          colors: _colors[i % _colors.length],
+                          onTap: () => _openChild(children[i], _colors[i % _colors.length][1]),
+                        ),
+                      if (children.length < 5) _AddCard(onTap: _addChild),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _KidCard extends StatelessWidget {
+  final ChildProfile child;
+  final List<Color> colors;
+  final VoidCallback onTap;
+
+  const _KidCard({required this.child, required this.colors, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final name = child.name.trim();
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(10, 16, 10, 12),
+        decoration: BoxDecoration(
+          color: colors[0],
+          borderRadius: BorderRadius.circular(26),
+          boxShadow: [BoxShadow(color: colors[1], offset: const Offset(0, 6))],
+        ),
+        child: Column(
+          children: [
+            Expanded(
+              child: AspectRatio(
+                aspectRatio: 1,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                  child: ClipOval(
+                    child: child.photo != null
+                        ? Image.memory(
+                            child.photo!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, _, _) => _Initial(name: name, color: colors[1]),
+                          )
+                        : _Initial(name: name, color: colors[1]),
+                  ),
+                ),
+              ),
             ),
+            const SizedBox(height: 10),
+            Text(
+              name.isEmpty ? 'Child' : name,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: EntryColors.ink),
+            ),
+            if (child.age != null)
+              Text(
+                '${child.age} years old',
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: EntryColors.soft),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// First letter of the name when there is no photo.
+class _Initial extends StatelessWidget {
+  final String name;
+  final Color color;
+
+  const _Initial({required this.name, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: color.withValues(alpha: 0.18),
+      alignment: Alignment.center,
+      child: FittedBox(
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Text(
+            name.isEmpty ? '?' : name[0].toUpperCase(),
+            style: TextStyle(fontSize: 48, fontWeight: FontWeight.w900, color: color),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AddCard extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _AddCard({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.7),
+          borderRadius: BorderRadius.circular(26),
+          border: Border.all(color: EntryColors.line, width: 2),
+        ),
+        child: const Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircleAvatar(
+              radius: 30,
+              backgroundColor: Color(0xFFFFF0DE),
+              child: Icon(Icons.add_rounded, size: 34, color: EntryColors.orange),
+            ),
+            SizedBox(height: 10),
+            Text(
+              'Add child',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: EntryColors.ink),
+            ),
+            Text(
+              'for parents',
+              style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: EntryColors.soft),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NoProfiles extends StatelessWidget {
+  final VoidCallback onAdd;
+
+  const _NoProfiles({required this.onAdd});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 26, 20, 22),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: EntryColors.line, width: 1.5),
+      ),
+      child: Column(
+        children: [
+          const Text('🧒', style: TextStyle(fontSize: 54)),
+          const SizedBox(height: 8),
+          const Text(
+            'No profiles yet',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: EntryColors.ink),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Ask your parent to add your profile, then you can start playing!',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: EntryColors.soft, height: 1.4),
+          ),
+          const SizedBox(height: 18),
+          EntryButton(label: 'Add a child', onPressed: onAdd),
+        ],
+      ),
     );
   }
 }

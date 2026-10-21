@@ -21,6 +21,11 @@ dependencies:
   http: ^1.6.0
   image_picker: ^1.2.4
   firebase_storage: ^13.6.0
+  flame: ^1.38.2
+  record: ^6.2.1
+  flutter_tts: ^4.2.5
+  # 7.5 needs Flutter 3.44; 7.4 works on older Flutter too.
+  speech_to_text: ">=7.4.0 <7.5.0"
   supabase_flutter: ^2.18.3
 
 dev_dependencies:
