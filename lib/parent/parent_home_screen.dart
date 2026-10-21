@@ -3,27 +3,22 @@ import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-
 import 'add_child_profile_screen.dart';
 import 'parent_ai_chat_screen.dart';
 import 'parent_profile_screen.dart';
-
+import 'kids_profile_selection_screen.dart';
 class ParentHomeScreen extends StatefulWidget {
   const ParentHomeScreen({super.key});
-
   @override
   State<ParentHomeScreen> createState() => _ParentHomeScreenState();
 }
-
 class _ParentHomeScreenState extends State<ParentHomeScreen> {
   static const cream = Color(0xFFF5EFE8);
   static const yellow = Color(0xFFFFEFA8);
   static const purple = Color(0xFF8B5E9E);
-
   final FirebaseFirestore db = FirebaseFirestore.instance;
   String? selectedChildId;
   User? get user => FirebaseAuth.instance.currentUser;
-
   String _parentName(Map<String, dynamic>? data) {
     final fromDb = (data?['username'] ?? data?['name'] ?? '').toString().trim();
     if (fromDb.isNotEmpty) return fromDb;
@@ -31,7 +26,6 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
     if (displayName.isNotEmpty) return displayName;
     return user?.email?.split('@').first ?? 'Parent';
   }
-
   String _tipFor(String sound) {
     switch (sound.toUpperCase().replaceAll('/', '').trim()) {
       case 'S':
@@ -48,7 +42,6 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
         return 'Spend 5–10 minutes playing with sounds, naming pictures and praising your child’s efforts.';
     }
   }
-
   Future<void> _addChild() async {
     final result = await Navigator.push<Map<String, dynamic>>(
       context,
@@ -64,7 +57,6 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
       ));
     }
   }
-
   Widget _card(Widget child) => Container(
     width: double.infinity,
     margin: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
@@ -75,10 +67,8 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
     ),
     child: child,
   );
-
   Widget _heading(String title) => Text(title,
     style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold));
-
   int? _childAge(Map<String, dynamic> data) {
     final birthday = data['birthDate'];
     if (birthday is Timestamp) {
@@ -92,7 +82,6 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
     final age = data['age'];
     return age is int ? age : int.tryParse('$age');
   }
-
   Uint8List? _childPhotoBytes(Map<String, dynamic> data) {
     final encoded = data['photoBase64'];
     if (encoded is! String || encoded.isEmpty) return null;
@@ -102,7 +91,6 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
       return null;
     }
   }
-
   Widget _childrenSection(String uid) => StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
     stream: db.collection('users').doc(uid).collection('children')
         .orderBy('createdAt').snapshots(),
@@ -120,7 +108,6 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
       }
       if (selected == null && children.isNotEmpty) selected = children.first;
       final tip = _tipFor(selected?.data()['targetSound']?.toString() ?? '');
-
       return Column(children: [
         _card(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           _heading('👶 My Children'),
@@ -175,14 +162,12 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
       ]);
     },
   );
-
   String _formatDate(DateTime date) {
     final hour = date.hour % 12 == 0 ? 12 : date.hour % 12;
     final minute = date.minute.toString().padLeft(2, '0');
     return '${date.day}/${date.month}/${date.year} · '
         '$hour:$minute ${date.hour >= 12 ? 'PM' : 'AM'}';
   }
-
   Widget _sessionsSection(String uid) => _card(Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
@@ -227,7 +212,6 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
       ),
     ],
   ));
-
   Widget _navItem(IconData icon, String title,
       {bool selected = false, VoidCallback? onTap}) => InkWell(
     onTap: onTap,
@@ -241,7 +225,6 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
       ]),
     ),
   );
-
   @override
   Widget build(BuildContext context) {
     final currentUser = user;
@@ -258,26 +241,92 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
             width: double.infinity,
             decoration: const BoxDecoration(color: yellow,
               borderRadius: BorderRadius.vertical(bottom: Radius.circular(25))),
-            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              Image.asset('lib/assets/images/robot.png',
-                width: 100, height: 100,
-                errorBuilder: (_, __, ___) => const Icon(Icons.android, size: 100)),
-              const SizedBox(width: 12),
-              InkWell(
-                borderRadius: BorderRadius.circular(24),
-                onTap: () => Navigator.push(context,
-                  MaterialPageRoute(builder: (_) => const ParentAiChatScreen())),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFF5C7),
-                    border: Border.all(color: Colors.black87, width: 1.5),
-                    borderRadius: BorderRadius.circular(24)),
-                  child: const Text('Free Talk (AI)',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            child: Stack(
+              children: [
+                Center(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Image.asset(
+                        'lib/assets/images/robot.png',
+                        width: 100,
+                        height: 100,
+                        errorBuilder: (_, __, ___) =>
+                            const Icon(Icons.android, size: 100),
+                      ),
+                      const SizedBox(width: 12),
+                      InkWell(
+                        borderRadius: BorderRadius.circular(24),
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const ParentAiChatScreen(),
+                          ),
+                        ),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 18,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFF5C7),
+                            border: Border.all(
+                              color: Colors.black87,
+                              width: 1.5,
+                            ),
+                            borderRadius: BorderRadius.circular(24),
+                          ),
+                          child: const Text(
+                            'Free Talk (AI)',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ]),
+                Positioned(
+                  top: 12,
+                  right: 12,
+                  child: PopupMenuButton<String>(
+                    tooltip: 'Switch Role',
+                    icon: const Icon(Icons.more_horiz, size: 30, color: Colors.black),
+                    onSelected: (role) {
+                      if (role == 'kid') {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const KidsProfileSelectionScreen(),
+                          ),
+                        );
+                      }
+                      // Parent Mode: stay on this dashboard.
+                    },
+                    itemBuilder: (context) => const [
+                      PopupMenuItem<String>(
+                        value: 'parent',
+                        child: Row(children: [
+                          Icon(Icons.person, color: Color(0xFF8B5E9E)),
+                          SizedBox(width: 12),
+                          Text('Parent Mode'),
+                        ]),
+                      ),
+                      PopupMenuItem<String>(
+                        value: 'kid',
+                        child: Row(children: [
+                          Icon(Icons.child_care, color: Colors.orange),
+                          SizedBox(width: 12),
+                          Text('Kid Mode'),
+                        ]),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 12),
           Image.asset('lib/assets/images/logo.png',

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'beginner/beginner_page.dart';
 import 'pre intermediate/pre_intermediate_page.dart';
@@ -17,6 +18,10 @@ void main() async {
       messagingSenderId: '474037018699',
       projectId: 'talkiepal-80191',
     ),
+  );
+  await Supabase.initialize(
+    url: 'https://lnmpyghuwmvbggjvbirs.supabase.co',
+    anonKey: 'sb_publishable_4kXDW835pb1iYXUv-XgQGg_TT2GeSCp',
   );
   runApp(const MyApp());
 }
