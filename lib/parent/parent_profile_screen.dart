@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:talkiepal/services/parent_store.dart';
 import 'package:talkiepal/services/progress_store.dart';
 
 import 'add_child_profile_screen.dart';
+import 'child_profile_details_screen.dart';
 import 'change_password_screen.dart';
 import 'edit_profile_screen.dart';
 import 'login_screen.dart';
@@ -19,6 +23,7 @@ class ParentProfileScreen extends StatefulWidget {
 class _ParentProfileScreenState extends State<ParentProfileScreen> {
   bool isNotificationOn = true;
   ParentInfo? parent;
+  String? parentPhotoUrl;
   List<ChildProfile> children = [];
 
   @override
@@ -30,8 +35,23 @@ class _ParentProfileScreenState extends State<ParentProfileScreen> {
   Future<void> _load() async {
     try {
       final results = await Future.wait([ParentStore.instance.me(), ProgressStore.instance.children()]);
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      String? signedPhotoUrl;
+      if (uid != null) {
+        try {
+          final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+          final path = doc.data()?['parentPhotoPath']?.toString();
+          if (path != null && path.isNotEmpty) {
+            signedPhotoUrl = await Supabase.instance.client.storage
+                .from('parent-photos').createSignedUrl(path, 3600);
+          }
+        } catch (e) {
+          debugPrint('[Profile] photo load failed: $e');
+        }
+      }
       if (!mounted) return;
       setState(() {
+        parentPhotoUrl = signedPhotoUrl;
         parent = results[0] as ParentInfo;
         children = results[1] as List<ChildProfile>;
       });
@@ -102,7 +122,7 @@ class _ParentProfileScreenState extends State<ParentProfileScreen> {
               for (final child in children)
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading: ParentChildAvatar(child, radius: 20),
+                  leading: _SupabaseChildAvatar(child: child, radius: 20),
                   title: Text(
                     child.name,
                     style: const TextStyle(fontWeight: FontWeight.w800, color: ParentColors.ink),
@@ -113,6 +133,11 @@ class _ParentProfileScreenState extends State<ParentProfileScreen> {
                       child.targetSound == null ? 'No target sound' : 'Target /${child.targetSound}/',
                     ].join(' · '),
                   ),
+                  trailing: const Icon(Icons.chevron_right_rounded, color: ParentColors.purple),
+                  onTap: () async {
+                    Navigator.pop(sheetContext);
+                    await _open(ChildProfileDetailsScreen(childId: child.id));
+                  },
                 ),
               const SizedBox(height: 8),
               SizedBox(
@@ -191,7 +216,8 @@ class _ParentProfileScreenState extends State<ParentProfileScreen> {
             CircleAvatar(
               radius: 30,
               backgroundColor: ParentColors.yellow,
-              child: Text(
+              backgroundImage: parentPhotoUrl == null ? null : NetworkImage(parentPhotoUrl!),
+              child: parentPhotoUrl != null ? null : Text(
                 name.isEmpty ? '?' : name[0].toUpperCase(),
                 style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: ParentColors.purpleDark),
               ),
@@ -309,6 +335,62 @@ class _ParentProfileScreenState extends State<ParentProfileScreen> {
           ),
         ),
       ],
+    );
+  }
+}
+
+
+/// Shows the current child photo from private Supabase Storage.
+/// Falls back to the existing avatar for children not yet migrated.
+class _SupabaseChildAvatar extends StatelessWidget {
+  final ChildProfile child;
+  final double radius;
+
+  const _SupabaseChildAvatar({required this.child, this.radius = 20});
+
+  @override
+  Widget build(BuildContext context) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return ParentChildAvatar(child, radius: radius);
+
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('children')
+          .doc(child.id)
+          .snapshots(),
+      builder: (context, snapshot) {
+        final path = (snapshot.data?.data()?['childPhotoPath'] ?? '')
+            .toString()
+            .trim();
+        if (path.isEmpty) {
+          return ParentChildAvatar(child, radius: radius);
+        }
+
+        return FutureBuilder<String>(
+          key: ValueKey(path),
+          future: Supabase.instance.client.storage
+              .from('child-photos')
+              .createSignedUrl(path, 3600),
+          builder: (context, photoSnapshot) {
+            if (!photoSnapshot.hasData) {
+              if (photoSnapshot.hasError) {
+                debugPrint('[Child avatar] signed URL failed: ${photoSnapshot.error}');
+              }
+              return ParentChildAvatar(child, radius: radius);
+            }
+            return CircleAvatar(
+              radius: radius,
+              backgroundColor: ParentColors.yellow,
+              backgroundImage: NetworkImage(photoSnapshot.data!),
+              onBackgroundImageError: (error, stackTrace) {
+                debugPrint('[Child avatar] image load failed: $error');
+              },
+            );
+          },
+        );
+      },
     );
   }
 }

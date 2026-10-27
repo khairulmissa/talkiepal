@@ -2,16 +2,18 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
-import '../parent/parent_ai_chat_screen.dart';
+import 'therapist_ai_chat_screen.dart';
+import 'therapist_parent_chat_screen.dart';
+import 'therapist_patients_screen.dart';
 import 'therapist_profile_screen.dart';
+import 'therapist_schedule_screen.dart';
+import 'therapist_ui.dart';
 
-/// Therapist dashboard shares the Parent AI chat page and visual assets.
+/// Therapist dashboard backed by the collections currently used in TalkiePal:
+/// chats (therapistId) and appointments (therapistId).
+/// A chat is a temporary patient-list source, NOT proof of clinical assignment.
 class TherapistDashboard extends StatelessWidget {
   const TherapistDashboard({super.key});
-
-  static const Color cream = Color(0xFFF5EFE8);
-  static const Color purple = Color(0xFF8B5E9E);
-  static const Color yellow = Color(0xFFFFEFA8);
 
   @override
   Widget build(BuildContext context) {
@@ -24,8 +26,12 @@ class TherapistDashboard extends StatelessWidget {
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       stream: db.collection('users').doc(uid).snapshots(),
       builder: (context, accountSnapshot) {
-        if (accountSnapshot.hasError) return _notice('Unable to load account permissions.');
-        if (!accountSnapshot.hasData) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        if (accountSnapshot.hasError) {
+          return _notice('Unable to load therapist account. Check Firestore permissions.');
+        }
+        if (!accountSnapshot.hasData) {
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        }
         final account = accountSnapshot.data!.data();
         if (account?['role'] != 'therapist' ||
             account?['isActive'] != true ||
@@ -38,50 +44,96 @@ class TherapistDashboard extends StatelessWidget {
             final profileName = (profileSnapshot.data?.data()?['fullName'] ?? '').toString().trim();
             final accountName = (account?['username'] ?? account?['name'] ?? '').toString().trim();
             final authName = user.displayName?.trim() ?? '';
-            final name = profileName.isNotEmpty ? profileName : accountName.isNotEmpty ? accountName : authName.isNotEmpty ? authName : (user.email?.split('@').first ?? 'Therapist');
+            final name = profileName.isNotEmpty
+                ? profileName
+                : accountName.isNotEmpty
+                    ? accountName
+                    : authName.isNotEmpty
+                        ? authName
+                        : (user.email?.split('@').first ?? 'Therapist');
             return Scaffold(
-              backgroundColor: cream,
-              body: SafeArea(
-                child: ListView(
-                  children: [
-                    _header(context),
-                    Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        _welcome(name),
-                        const SizedBox(height: 18),
-                        _stats(uid),
-                        const SizedBox(height: 24),
+              backgroundColor: TherapistColors.background,
+              body: ListView(
+                padding: EdgeInsets.zero,
+                children: [
+                  TherapistHeader(
+                    name: name,
+                    onProfile: () => _open(context, const TherapistProfileScreen()),
+                    onNotification: () => _toast(context, 'Notifications will be connected next.'),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _aiCard(context),
+                        const SizedBox(height: 13),
+                        _overview(uid),
+                        const SizedBox(height: 16),
+                        const TherapistSectionTitle(title: 'Quick access'),
+                        const SizedBox(height: 10),
+                        GridView.count(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          crossAxisCount: 2,
+                          mainAxisSpacing: 10,
+                          crossAxisSpacing: 10,
+                          childAspectRatio: 1.65,
+                          children: [
+                            TherapistShortcut(
+                              title: 'Schedule',
+                              subtitle: 'Manage availability',
+                              icon: Icons.calendar_month_outlined,
+                              iconBackground: const Color(0xFFF2E7FA),
+                              onTap: () => _open(context, const TherapistScheduleScreen()),
+                            ),
+                            TherapistShortcut(
+                              title: 'Patients',
+                              subtitle: 'View assigned children',
+                              icon: Icons.child_care_rounded,
+                              iconBackground: const Color(0xFFE3F2FF),
+                              onTap: () => _open(context, const TherapistPatientsScreen()),
+                            ),
+                            TherapistShortcut(
+                              title: 'Tasks',
+                              subtitle: 'Homework & activities',
+                              icon: Icons.assignment_outlined,
+                              iconBackground: const Color(0xFFE1F5EE),
+                              onTap: () => _toast(context, 'Tasks page will be connected next.'),
+                            ),
+                            TherapistShortcut(
+                              title: 'Profile',
+                              subtitle: 'Edit your information',
+                              icon: Icons.person_outline_rounded,
+                              iconBackground: const Color(0xFFFFEEDD),
+                              onTap: () => _open(context, const TherapistProfileScreen()),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+                        const TherapistSectionTitle(title: 'Upcoming sessions'),
+                        const SizedBox(height: 9),
                         _appointments(uid),
-                        const SizedBox(height: 24),
+                        const SizedBox(height: 20),
+                        TherapistSectionTitle(
+                          title: 'My patients',
+                          onSeeAll: () => _open(context, const TherapistPatientsScreen()),
+                        ),
+                        const SizedBox(height: 9),
                         _patients(uid),
-                      ]),
+                        const SizedBox(height: 15),
+                      ],
                     ),
-                  ],
-                ),
-              ),
-              bottomNavigationBar: BottomNavigationBar(
-                currentIndex: 0,
-                type: BottomNavigationBarType.fixed,
-                selectedItemColor: purple,
-                unselectedItemColor: Colors.black54,
-                backgroundColor: const Color(0xFFECECEC),
-                onTap: (index) {
-                  if (index == 0) return;
-                  if (index == 3) {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => const TherapistProfileScreen()));
-                    return;
-                  }
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                    content: Text('${['Home', 'Chat', 'Patients', 'Profile'][index]} page will be connected next.'),
-                  ));
-                },
-                items: const [
-                  BottomNavigationBarItem(icon: Icon(Icons.home_outlined), label: 'Home'),
-                  BottomNavigationBarItem(icon: Icon(Icons.chat_bubble_outline), label: 'Chat'),
-                  BottomNavigationBarItem(icon: Icon(Icons.people_outline), label: 'Patients'),
-                  BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'Profile'),
+                  ),
                 ],
+              ),
+              bottomNavigationBar: TherapistBottomNav(
+                selectedIndex: 0,
+                onSelect: (index) {
+                  if (index == 1) _open(context, const TherapistParentChatScreen());
+                  if (index == 2) _open(context, const TherapistPatientsScreen());
+                  if (index == 3) _open(context, const TherapistProfileScreen());
+                },
               ),
             );
           },
@@ -90,187 +142,231 @@ class TherapistDashboard extends StatelessWidget {
     );
   }
 
-  Widget _notice(String text) => Scaffold(
-    backgroundColor: cream,
-    body: Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(text, textAlign: TextAlign.center))),
-  );
+  Widget _notice(String message) => Scaffold(
+        backgroundColor: TherapistColors.background,
+        body: Center(child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(message, textAlign: TextAlign.center),
+        )),
+      );
 
-  Widget _header(BuildContext context) => Column(children: [
-    Container(
-      height: 200,
-      width: double.infinity,
-      decoration: const BoxDecoration(
-        color: purple,
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(25)),
-      ),
-      child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-        Image.asset(
-          'lib/assets/images/robot.png',
-          width: 100,
-          height: 100,
-          errorBuilder: (_, __, ___) => const Icon(Icons.android, size: 100),
-        ),
-        const SizedBox(width: 12),
-        InkWell(
-          borderRadius: BorderRadius.circular(24),
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const ParentAiChatScreen()),
+  void _open(BuildContext context, Widget page) {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+  }
+
+  void _toast(BuildContext context, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Widget _aiCard(BuildContext context) => TherapistCard(
+        color: TherapistColors.yellow,
+        child: Row(children: [
+          const CircleAvatar(
+            radius: 29,
+            backgroundColor: Colors.white,
+            child: Icon(Icons.smart_toy_outlined, color: TherapistColors.purple, size: 31),
           ),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-            decoration: BoxDecoration(
-              color: const Color(0xFF8B5E9E),
-              border: Border.all(color: Colors.black87, width: 1.5),
-              borderRadius: BorderRadius.circular(24),
+          const SizedBox(width: 13),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('Free Talk (AI)',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: TherapistColors.text)),
+            const SizedBox(height: 3),
+            const Text('Ask about speech activities and therapy suggestions.',
+                style: TextStyle(fontSize: 11, color: TherapistColors.text)),
+            const SizedBox(height: 9),
+            FilledButton.icon(
+              onPressed: () => _open(context, const TherapistAiChatScreen()),
+              style: FilledButton.styleFrom(
+                backgroundColor: TherapistColors.text,
+                padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
+                minimumSize: const Size(0, 32),
+              ),
+              icon: const Icon(Icons.chat_bubble, size: 14),
+              label: const Text('Start chat', style: TextStyle(fontSize: 11)),
             ),
-            child: const Text('Free Talk (AI)',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-          ),
-        ),
-      ]),
-    ),
-    const SizedBox(height: 12),
-    Image.asset(
-      'lib/assets/images/mylogo.png',
-      width: 300,
-      height: 150,
-      fit: BoxFit.contain,
-      errorBuilder: (_, __, ___) => const Icon(Icons.error, size: 100),
-    ),
-    const Divider(thickness: 1),
-  ]);
+          ])),
+        ]),
+      );
 
-  Widget _welcome(String name) => Container(
-    width: double.infinity,
-    padding: const EdgeInsets.all(18),
-    decoration: BoxDecoration(color: const Color(0xFFF0F0F0), borderRadius: BorderRadius.circular(16)),
-    child: Text('👋 Hello, $name\nWelcome back!', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-  );
-
-  Widget _stats(String uid) {
+  /// Chat-linked children are used until a dedicated trusted assignment index exists.
+  /// Appointment and chat reads are isolated so one failing stream cannot hide everything.
+  Widget _overview(String uid) {
     final db = FirebaseFirestore.instance;
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: db.collection('therapist_assignments').where('therapistUid', isEqualTo: uid).snapshots(),
-      builder: (context, a) => StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: db.collection('appointments').where('therapistUid', isEqualTo: uid).snapshots(),
-        builder: (context, b) => StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-          stream: db.collection('therapy_tasks').where('therapistUid', isEqualTo: uid).snapshots(),
-          builder: (context, c) {
-            if (a.hasError || b.hasError || c.hasError) return const Text('Unable to load statistics. Check Firestore rules.');
-            if (!a.hasData || !b.hasData || !c.hasData) return const Center(child: CircularProgressIndicator());
-            final active = a.data!.docs.where((d) => d.data()['status'] == 'active').toList();
+      stream: db.collection('chats').where('therapistId', isEqualTo: uid).snapshots(),
+      builder: (context, chatsSnapshot) {
+        return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+          stream: db.collection('appointments').where('therapistId', isEqualTo: uid).snapshots(),
+          builder: (context, appointmentsSnapshot) {
+            final chatError = chatsSnapshot.hasError;
+            final appointmentError = appointmentsSnapshot.hasError;
+            if (!chatError && !appointmentError &&
+                (!chatsSnapshot.hasData || !appointmentsSnapshot.hasData)) {
+              return const TherapistCard(child: Center(child: CircularProgressIndicator()));
+            }
+            final patientKeys = <String>{};
+            if (chatsSnapshot.hasData) {
+              for (final doc in chatsSnapshot.data!.docs) {
+                final d = doc.data();
+                final parent = (d['parentId'] ?? '').toString();
+                final child = (d['childId'] ?? '').toString();
+                if (parent.isNotEmpty && child.isNotEmpty) patientKeys.add('$parent/$child');
+              }
+            }
             final now = DateTime.now();
-            final today = b.data!.docs.where((d) {
-              final data = d.data();
-              final t = data['startAt'];
-              if (t is! Timestamp || data['status'] == 'cancelled') return false;
-              final date = t.toDate().toLocal();
-              return date.year == now.year && date.month == now.month && date.day == now.day;
-            }).length;
-            final pending = c.data!.docs.where((d) => d.data()['status'] == 'pending').length;
-            final progress = active.map((d) => d.data()['progressPercent']).whereType<num>().toList();
-            final average = progress.isEmpty ? '—' : '${(progress.fold<double>(0, (sum, p) => sum + p.toDouble()) / progress.length).round()}%';
-            return GridView.count(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: 2,
-              mainAxisSpacing: 10,
-              crossAxisSpacing: 10,
-              childAspectRatio: 1.65,
-              children: [
-                _stat('Patients', '${active.length}', Icons.people_outline, const Color(0xFFBCE6FF)),
-                _stat('Today Session', '$today', Icons.calendar_month_outlined, const Color(0xFFFFF59D)),
-                _stat('Task Pending', '$pending', Icons.assignment_outlined, const Color(0xFFFFD98E)),
-                _stat('Average Progress', average, Icons.pie_chart_outline, const Color(0xFFFFC2D1)),
-              ],
+            var today = 0;
+            if (appointmentsSnapshot.hasData) {
+              for (final doc in appointmentsSnapshot.data!.docs) {
+                final d = doc.data();
+                final timestamp = d['startAt'];
+                if (timestamp is! Timestamp || d['status'] == 'cancelled') continue;
+                final date = timestamp.toDate().toLocal();
+                if (date.year == now.year && date.month == now.month && date.day == now.day) today++;
+              }
+            }
+            return TherapistCard(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('Practice overview',
+                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                const SizedBox(height: 14),
+                Row(children: [
+                  _metric(chatError ? '—' : '${patientKeys.length}', 'patients'),
+                  _metric(appointmentError ? '—' : '$today', 'sessions today'),
+                  _metric('—', 'pending tasks'),
+                  _metric('—', 'avg. progress'),
+                ]),
+                if (chatError || appointmentError) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    'Some statistics are unavailable. Check Firestore permissions.',
+                    style: TextStyle(fontSize: 11, color: Colors.red.shade700),
+                  ),
+                ],
+              ]),
             );
           },
-        ),
-      ),
+        );
+      },
     );
   }
 
-  Widget _stat(String label, String value, IconData icon, Color color) => Container(
-    padding: const EdgeInsets.all(12),
-    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15), boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 3)]),
-    child: Row(children: [
-      CircleAvatar(backgroundColor: color, child: Icon(icon, color: Colors.black87)),
-      const SizedBox(width: 8),
-      Expanded(child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(label, maxLines: 2, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 5),
-        Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-      ])),
-    ]),
-  );
+  Widget _metric(String value, String label) => Expanded(
+        child: Column(children: [
+          Text(value, style: const TextStyle(
+              fontSize: 18, fontWeight: FontWeight.w800, color: TherapistColors.text)),
+          const SizedBox(height: 5),
+          Text(label, textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 10, color: TherapistColors.muted)),
+        ]),
+      );
 
   Widget _appointments(String uid) => StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-    stream: FirebaseFirestore.instance.collection('appointments').where('therapistUid', isEqualTo: uid).snapshots(),
-    builder: (context, snapshot) {
-      final upcoming = (snapshot.data?.docs ?? []).where((d) {
-        final data = d.data();
-        return data['startAt'] is Timestamp &&
-            (data['startAt'] as Timestamp).toDate().isAfter(DateTime.now()) &&
-            data['status'] != 'cancelled';
-      }).toList()..sort((x, y) => (x.data()['startAt'] as Timestamp).compareTo(y.data()['startAt'] as Timestamp));
-      return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Text('Upcoming Appointment', style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 10),
-        if (snapshot.hasError) _empty('Unable to load appointments')
-        else if (!snapshot.hasData) const Center(child: CircularProgressIndicator())
-        else if (upcoming.isEmpty) _empty('No upcoming appointments yet')
-        else Container(
-          decoration: BoxDecoration(color: const Color(0xFF2B2B2B), borderRadius: BorderRadius.circular(16)),
-          child: Column(children: upcoming.take(3).map((d) {
-            final data = d.data();
-            final date = (data['startAt'] as Timestamp).toDate().toLocal();
-            return ListTile(
-              leading: const CircleAvatar(backgroundColor: yellow, child: Icon(Icons.person, color: Colors.black87)),
-              title: Text((data['childName'] ?? 'Therapy Session').toString(), style: const TextStyle(color: Colors.white)),
-              subtitle: Text('${date.day}/${date.month}/${date.year} • ${TimeOfDay.fromDateTime(date).format(context)}', style: const TextStyle(color: Colors.white70)),
-              trailing: const Icon(Icons.videocam_outlined, color: Colors.white),
-            );
-          }).toList()),
-        ),
-      ]);
-    },
-  );
+        stream: FirebaseFirestore.instance
+            .collection('appointments')
+            .where('therapistId', isEqualTo: uid)
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return _empty('Unable to load appointments. Check Firestore rules and therapistId.');
+          }
+          if (!snapshot.hasData) {
+            return const TherapistCard(child: Center(child: CircularProgressIndicator()));
+          }
+          final upcoming = snapshot.data!.docs.where((doc) {
+            final d = doc.data();
+            return d['startAt'] is Timestamp &&
+                (d['startAt'] as Timestamp).toDate().isAfter(DateTime.now()) &&
+                d['status'] != 'cancelled';
+          }).toList()
+            ..sort((a, b) => (a.data()['startAt'] as Timestamp)
+                .compareTo(b.data()['startAt'] as Timestamp));
+          if (upcoming.isEmpty) return _empty('No upcoming appointments yet.');
+          return TherapistCard(
+            child: Column(children: [
+              for (final doc in upcoming.take(3))
+                Builder(builder: (context) {
+                  final d = doc.data();
+                  final date = (d['startAt'] as Timestamp).toDate().toLocal();
+                  return ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const CircleAvatar(
+                      backgroundColor: Color(0xFFF3E9FB),
+                      child: Icon(Icons.calendar_today_rounded, color: TherapistColors.purple),
+                    ),
+                    title: Text((d['childName'] ?? 'Therapy Session').toString(),
+                        style: const TextStyle(fontWeight: FontWeight.w700)),
+                    subtitle: Text(
+                      '${date.day}/${date.month}/${date.year} • ${TimeOfDay.fromDateTime(date).format(context)}',
+                      style: const TextStyle(fontSize: 12, color: TherapistColors.muted),
+                    ),
+                    trailing: const Icon(Icons.videocam_outlined, color: TherapistColors.purple),
+                  );
+                }),
+            ]),
+          );
+        },
+      );
 
   Widget _patients(String uid) => StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-    stream: FirebaseFirestore.instance.collection('therapist_assignments').where('therapistUid', isEqualTo: uid).snapshots(),
-    builder: (context, snapshot) {
-      final patients = (snapshot.data?.docs ?? []).where((d) => d.data()['status'] == 'active').take(5).toList();
-      return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Text('Patient List', style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 10),
-        if (snapshot.hasError) _empty('Unable to load patients')
-        else if (!snapshot.hasData) const Center(child: CircularProgressIndicator())
-        else if (patients.isEmpty) _empty('No patients assigned yet')
-        else ...patients.map((d) {
-          final data = d.data();
-          final progress = data['progressPercent'];
-          return Card(color: Colors.white, child: ListTile(
-            leading: const CircleAvatar(backgroundColor: yellow, child: Icon(Icons.child_care)),
-            title: Text((data['childName'] ?? 'Child').toString()),
-            subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text((data['speechProblem'] ?? 'Speech practice').toString()),
-              if (progress is num) ...[
-                const SizedBox(height: 6),
-                LinearProgressIndicator(value: (progress.toDouble() / 100).clamp(0.0, 1.0), color: purple),
-                Text('${progress.round()}% progress'),
-              ],
+        stream: FirebaseFirestore.instance
+            .collection('chats')
+            .where('therapistId', isEqualTo: uid)
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) return _empty('Unable to load patients. Check chat permissions.');
+          if (!snapshot.hasData) {
+            return const TherapistCard(child: Center(child: CircularProgressIndicator()));
+          }
+          final seen = <String>{};
+          final patients = <Map<String, dynamic>>[];
+          for (final doc in snapshot.data!.docs) {
+            final d = doc.data();
+            final parent = (d['parentId'] ?? '').toString();
+            final child = (d['childId'] ?? '').toString();
+            if (parent.isEmpty || child.isEmpty || !seen.add('$parent/$child')) continue;
+            patients.add(d);
+          }
+          if (patients.isEmpty) return _empty('No chat-linked patients yet.');
+          return TherapistCard(
+            child: Column(children: [
+              for (final d in patients.take(5))
+                InkWell(
+                  onTap: () => _showPatients(context),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Row(children: [
+                      const CircleAvatar(
+                        backgroundColor: Color(0xFFFFF1C9),
+                        child: Icon(Icons.child_care_rounded, color: TherapistColors.purple),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text((d['childName'] ?? 'Child').toString(),
+                              style: const TextStyle(fontWeight: FontWeight.w800)),
+                          Text('Parent: ${(d['parentName'] ?? 'Not specified')}',
+                              style: const TextStyle(fontSize: 11, color: TherapistColors.muted)),
+                        ],
+                      )),
+                      const Icon(Icons.chevron_right, color: TherapistColors.purple),
+                    ]),
+                  ),
+                ),
             ]),
-          ));
-        }),
-      ]);
-    },
-  );
+          );
+        },
+      );
 
-  Widget _empty(String message) => Container(
-    width: double.infinity,
-    padding: const EdgeInsets.all(22),
-    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
-    child: Text(message, textAlign: TextAlign.center, style: const TextStyle(color: Colors.black54)),
-  );
+  Widget _empty(String message) => TherapistCard(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 9),
+          child: Text(message, textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 12, color: TherapistColors.muted)),
+        ),
+      );
+
+  void _showPatients(BuildContext context) =>
+      _open(context, const TherapistPatientsScreen());
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'beginner/beginner_page.dart';
 import 'pre intermediate/pre_intermediate_page.dart';
 import 'intermediate/intermediate_page.dart';
@@ -25,6 +26,11 @@ void main() async {
   await Supabase.initialize(
     url: 'https://lnmpyghuwmvbggjvbirs.supabase.co',
     anonKey: 'sb_publishable_4kXDW835pb1iYXUv-XgQGg_TT2GeSCp',
+    accessToken: () async {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return null;
+      return user.getIdToken();
+    },
   );
   runApp(const MyApp());
 }

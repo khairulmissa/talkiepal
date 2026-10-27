@@ -17,4 +17,11 @@ class ApiConfig {
   static const String generateMinimalPairsUrl = '$baseUrl/generate-minimal-pairs';
 
   static const String chatUrl = '$baseUrl/chat';
+
+  static String get therapistChatUrl =>
+      chatUrl.replaceFirst(
+        RegExp(r'/chat/?$'),
+        '/ai/therapist',
+      );
+  
 }

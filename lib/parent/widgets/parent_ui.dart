@@ -1,8 +1,13 @@
+import 'dart:typed_data';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:talkiepal/parent/parent_home_screen.dart';
 import 'package:talkiepal/parent/parent_profile_screen.dart';
 import 'package:talkiepal/parent/parent_progress_screen.dart';
-import 'package:talkiepal/parent/therapist_screen.dart';
+import 'package:talkiepal/parent/parent_therapist_screen.dart';
 import 'package:talkiepal/services/progress_store.dart';
 
 /// Colours of the parent area.
@@ -361,22 +366,76 @@ class ParentHeaderButton extends StatelessWidget {
   }
 }
 
-/// Child photo, or a friendly icon when there is none.
-class ParentChildAvatar extends StatelessWidget {
+/// Child avatar shared by the Parent Home picker and other parent screens.
+/// Loads the private Supabase photo, falling back to legacy Base64 or an icon.
+class ParentChildAvatar extends StatefulWidget {
   final ChildProfile child;
   final double radius;
 
   const ParentChildAvatar(this.child, {super.key, this.radius = 13});
 
   @override
+  State<ParentChildAvatar> createState() => _ParentChildAvatarState();
+}
+
+class _ParentChildAvatarState extends State<ParentChildAvatar> {
+  late Future<Uint8List?> _photoFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _photoFuture = _loadPhoto();
+  }
+
+  @override
+  void didUpdateWidget(covariant ParentChildAvatar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.child.id != widget.child.id ||
+        oldWidget.child.photo != widget.child.photo) {
+      _photoFuture = _loadPhoto();
+    }
+  }
+
+  Future<Uint8List?> _loadPhoto() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return widget.child.photo;
+
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('children')
+          .doc(widget.child.id)
+          .get();
+      final path = snapshot.data()?['childPhotoPath']?.toString().trim();
+      if (path != null && path.isNotEmpty) {
+        return await Supabase.instance.client.storage
+            .from('child-photos')
+            .download(path);
+      }
+    } catch (e) {
+      debugPrint('[ParentChildAvatar] Supabase photo unavailable: $e');
+    }
+    return widget.child.photo;
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return CircleAvatar(
-      radius: radius,
-      backgroundColor: ParentColors.yellowLight,
-      backgroundImage: child.photo != null ? MemoryImage(child.photo!) : null,
-      child: child.photo == null
-          ? Icon(Icons.child_care_rounded, size: radius * 1.15, color: ParentColors.purple)
-          : null,
+    return FutureBuilder<Uint8List?>(
+      future: _photoFuture,
+      builder: (context, snapshot) {
+        final bytes = snapshot.data ?? widget.child.photo;
+        return CircleAvatar(
+          radius: widget.radius,
+          backgroundColor: ParentColors.yellowLight,
+          backgroundImage: bytes != null ? MemoryImage(bytes) : null,
+          child: bytes == null
+              ? Icon(Icons.child_care_rounded,
+                  size: widget.radius * 1.15,
+                  color: ParentColors.purple)
+              : null,
+        );
+      },
     );
   }
 }
