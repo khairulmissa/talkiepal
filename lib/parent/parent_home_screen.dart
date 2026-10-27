@@ -1,3 +1,7 @@
+import 'parent_upcoming_appointments.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:talkiepal/practice/widgets/score_dialog.dart';
 import 'package:talkiepal/progress_page.dart';
@@ -8,10 +12,9 @@ import 'package:talkiepal/services/progress_store.dart';
 import 'add_child_profile_screen.dart';
 import 'parent_ai_chat_screen.dart';
 import 'parent_progress_screen.dart';
+import 'widgets/therapist_feedback_report.dart';
 import 'widgets/parent_ui.dart';
 
-/// Parent Home: Free Talk (AI) first, then the picked child's day at a
-/// glance, quick links, booked sessions and a practice tip.
 class ParentHomeScreen extends StatefulWidget {
   const ParentHomeScreen({super.key});
 
@@ -26,7 +29,6 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
   ParentReport? report;
   bool isLoading = true;
   String? error;
-  late final Stream<List<UpcomingSession>> _upcoming = ParentStore.instance.upcomingSessions();
 
   @override
   void initState() {
@@ -154,14 +156,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
             const SizedBox(width: 8),
             GestureDetector(
               onTap: () => openParentTab(context, ParentTab.profile, from: ParentTab.home),
-              child: CircleAvatar(
-                radius: 19,
-                backgroundColor: ParentColors.yellow,
-                child: Text(
-                  name.isEmpty ? '?' : name[0].toUpperCase(),
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: ParentColors.purpleDark),
-                ),
-              ),
+              child: _ParentHomePhoto(name: name),
             ),
           ],
         ),
@@ -228,6 +223,31 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
     );
   }
 
+  Future<void> _generateReport() async {
+    final selectedChild = child;
+    if (selectedChild == null) {
+      _tell('Please select a child first.');
+      return;
+    }
+
+    try {
+      // Reload sessions so the PDF includes the latest completed practices.
+      final sessions = await ProgressStore.instance.sessions(
+        childId: selectedChild.id,
+      );
+      if (!mounted) return;
+      await generateChildProgressPdf(
+        childId: selectedChild.id,
+        childName: selectedChild.name,
+        targetSound: selectedChild.targetSound,
+        report: ParentReport(sessions),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      _tell('Unable to generate progress report: $e');
+    }
+  }
+
   Widget _buildActions() {
     Widget action(IconData icon, String title, String sub, Color color, VoidCallback onTap) => Expanded(
       child: GestureDetector(
@@ -291,7 +311,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
                 'Report',
                 'Generate PDF',
                 const Color(0xFFF57C00),
-                () => _tell('Generate report is coming soon.'),
+                _generateReport,
               ),
             ],
           ),
@@ -306,89 +326,8 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const ParentSectionTitle('Upcoming sessions', icon: Icons.event_rounded),
-          StreamBuilder<List<UpcomingSession>>(
-            stream: _upcoming,
-            builder: (context, snapshot) {
-              if (snapshot.hasError) {
-                return const Text(
-                  'Unable to load sessions.',
-                  style: TextStyle(fontSize: 12.5, color: ParentColors.soft),
-                );
-              }
-              final list = snapshot.data ?? const [];
-              if (list.isEmpty) {
-                return Row(
-                  children: [
-                    const ParentIconBox(Icons.event_available_rounded, ParentColors.soft),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'No sessions booked',
-                            style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: ParentColors.ink),
-                          ),
-                          Text(
-                            'Find a speech therapist${child == null ? '' : ' for ${child!.name}'}',
-                            style: const TextStyle(
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w600,
-                              color: ParentColors.soft,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    GestureDetector(
-                      onTap: () => openParentTab(context, ParentTab.therapist, from: ParentTab.home),
-                      child: const Text(
-                        'Find',
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: ParentColors.purple),
-                      ),
-                    ),
-                  ],
-                );
-              }
-              return Column(
-                children: [
-                  for (final s in list.take(5))
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: Row(
-                        children: [
-                          const ParentIconBox(Icons.event_rounded, ParentColors.purple),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  _sessionTime(s.when),
-                                  style: const TextStyle(
-                                    fontSize: 13.5,
-                                    fontWeight: FontWeight.w800,
-                                    color: ParentColors.ink,
-                                  ),
-                                ),
-                                Text(
-                                  '${s.therapist} · ${s.child}',
-                                  style: const TextStyle(
-                                    fontSize: 11.5,
-                                    fontWeight: FontWeight.w600,
-                                    color: ParentColors.soft,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
-              );
-            },
-          ),
+          const SizedBox(height: 8),
+          ParentUpcomingAppointments(childId: child?.id),
         ],
       ),
     );
@@ -556,7 +495,7 @@ class _ChildCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              ParentChildAvatar(child, radius: 26),
+              _HomeChildPhoto(child: child, radius: 26),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -639,6 +578,82 @@ class _ChildCard extends StatelessWidget {
           ],
         ],
       ),
+    );
+  }
+}
+
+
+/// Reads the parent's private photo using their own authenticated session.
+class _ParentHomePhoto extends StatelessWidget {
+  final String name;
+  const _ParentHomePhoto({required this.name});
+
+  @override
+  Widget build(BuildContext context) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    Widget fallback() => CircleAvatar(
+      radius: 19,
+      backgroundColor: ParentColors.yellow,
+      child: Text(name.isEmpty ? '?' : name[0].toUpperCase(),
+        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: ParentColors.purpleDark)),
+    );
+    if (uid == null) return fallback();
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance.collection('users').doc(uid).snapshots(),
+      builder: (context, snapshot) {
+        final path = (snapshot.data?.data()?['parentPhotoPath'] ?? '').toString().trim();
+        if (path.isEmpty) return fallback();
+        return FutureBuilder<String>(
+          key: ValueKey('parent-$path'),
+          future: Supabase.instance.client.storage.from('parent-photos').createSignedUrl(path, 3600),
+          builder: (context, signed) {
+            if (!signed.hasData) return fallback();
+            return CircleAvatar(
+              radius: 19,
+              backgroundColor: ParentColors.yellow,
+              backgroundImage: NetworkImage(signed.data!),
+              onBackgroundImageError: (_, __) {},
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+/// Shows the selected child's Supabase photo, with the existing avatar as fallback.
+class _HomeChildPhoto extends StatelessWidget {
+  final ChildProfile child;
+  final double radius;
+  const _HomeChildPhoto({required this.child, required this.radius});
+
+  @override
+  Widget build(BuildContext context) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    Widget fallback() => ParentChildAvatar(child, radius: radius);
+    if (uid == null) return fallback();
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      key: ValueKey('child-doc-${child.id}'),
+      stream: FirebaseFirestore.instance.collection('users').doc(uid)
+          .collection('children').doc(child.id).snapshots(),
+      builder: (context, snapshot) {
+        final data = snapshot.data?.data() ?? <String, dynamic>{};
+        final path = (data['childPhotoPath'] ?? '').toString().trim();
+        if (path.isEmpty) return fallback();
+        return FutureBuilder<String>(
+          key: ValueKey('child-photo-$path'),
+          future: Supabase.instance.client.storage.from('child-photos').createSignedUrl(path, 3600),
+          builder: (context, signed) {
+            if (!signed.hasData) return fallback();
+            return CircleAvatar(
+              radius: radius,
+              backgroundColor: ParentColors.yellow,
+              backgroundImage: NetworkImage(signed.data!),
+              onBackgroundImageError: (_, __) {},
+            );
+          },
+        );
+      },
     );
   }
 }

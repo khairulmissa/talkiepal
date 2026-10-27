@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:typed_data';
 
 import 'add_child_profile_screen.dart';
 import '../main.dart';
@@ -28,6 +32,7 @@ class _KidsProfileSelectionScreenState extends State<KidsProfileSelectionScreen>
   ];
 
   List<ChildProfile> children = [];
+  Map<String, Uint8List> supabasePhotos = {};
   bool isLoading = true;
   String? error;
 
@@ -40,9 +45,36 @@ class _KidsProfileSelectionScreenState extends State<KidsProfileSelectionScreen>
   Future<void> _load() async {
     try {
       final list = await ProgressStore.instance.children();
+      final photos = <String, Uint8List>{};
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid != null && list.isNotEmpty) {
+        try {
+          final childDocs = await FirebaseFirestore.instance
+              .collection('users').doc(uid).collection('children').get();
+          final paths = <String, String>{};
+          for (final doc in childDocs.docs) {
+            final path = doc.data()['childPhotoPath']?.toString().trim();
+            if (path != null && path.isNotEmpty) paths[doc.id] = path;
+          }
+          await Future.wait(list.map((kid) async {
+            final path = paths[kid.id];
+            if (path == null) return;
+            try {
+              final bytes = await Supabase.instance.client.storage
+                  .from('child-photos').download(path);
+              photos[kid.id] = bytes;
+            } catch (e) {
+              debugPrint('[Kids Selection] Could not load photo for ${kid.id}: $e');
+            }
+          }));
+        } catch (e) {
+          debugPrint('[Kids Selection] Could not read child photo paths: $e');
+        }
+      }
       if (!mounted) return;
       setState(() {
         children = list;
+        supabasePhotos = photos;
         isLoading = false;
         error = null;
       });
@@ -69,7 +101,7 @@ class _KidsProfileSelectionScreenState extends State<KidsProfileSelectionScreen>
 
   /// Dino says hello in the card's colour, then the kids Home opens.
   void _openChild(ChildProfile child, Color dinoColor) {
-    CurrentKid.select(name: child.name, id: child.id, photo: child.photo);
+    CurrentKid.select(name: child.name, id: child.id, photo: supabasePhotos[child.id] ?? child.photo);
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -158,6 +190,7 @@ class _KidsProfileSelectionScreenState extends State<KidsProfileSelectionScreen>
                       for (var i = 0; i < children.length; i++)
                         _KidCard(
                           child: children[i],
+                          photo: supabasePhotos[children[i].id] ?? children[i].photo,
                           colors: _colors[i % _colors.length],
                           onTap: () => _openChild(children[i], _colors[i % _colors.length][1]),
                         ),
@@ -175,10 +208,11 @@ class _KidsProfileSelectionScreenState extends State<KidsProfileSelectionScreen>
 
 class _KidCard extends StatelessWidget {
   final ChildProfile child;
+  final Uint8List? photo;
   final List<Color> colors;
   final VoidCallback onTap;
 
-  const _KidCard({required this.child, required this.colors, required this.onTap});
+  const _KidCard({required this.child, required this.photo, required this.colors, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -201,9 +235,9 @@ class _KidCard extends StatelessWidget {
                   padding: const EdgeInsets.all(4),
                   decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
                   child: ClipOval(
-                    child: child.photo != null
+                    child: photo != null
                         ? Image.memory(
-                            child.photo!,
+                            photo!,
                             fit: BoxFit.cover,
                             errorBuilder: (_, _, _) => _Initial(name: name, color: colors[1]),
                           )

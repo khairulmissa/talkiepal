@@ -1,3 +1,4 @@
+import 'package:talkiepal/parent/widgets/therapist_feedback_report.dart';
 import 'package:flutter/material.dart';
 import 'package:talkiepal/parent/widgets/parent_ui.dart';
 import 'package:talkiepal/practice/widgets/score_dialog.dart';
@@ -125,9 +126,27 @@ class _ParentProgressScreenState extends State<ParentProgressScreen> {
       header: ParentHeader(
         title: 'Progress',
         trailing: GestureDetector(
-          onTap: () => ScaffoldMessenger.of(context)
-            ..hideCurrentSnackBar()
-            ..showSnackBar(const SnackBar(content: Text('Generate report is coming soon.'))),
+          onTap: () async {
+            if (child == null || report == null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Select a child to generate a report.')),
+              );
+              return;
+            }
+            try {
+              await generateChildProgressPdf(
+                childId: child!.id,
+                childName: child!.name,
+                targetSound: child!.targetSound,
+                report: report!,
+              );
+            } catch (e) {
+              if (!mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Unable to generate PDF: $e')),
+              );
+            }
+          },
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
             decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
@@ -163,15 +182,16 @@ class _ParentProgressScreenState extends State<ParentProgressScreen> {
           )
         else if (child == null)
           const _Card(child: Text('No children added yet. Add a child on the Home page to see their progress.'))
-        else if (report!.sessions.isEmpty)
+        else if (report!.sessions.isEmpty) ...[
           _Card(
             child: Text(
               '${child!.name} has not finished a practice or game yet. '
               'Their progress will show here after the first one. 🦖',
               style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _ink),
             ),
-          )
-        else
+          ),
+          TherapistProgressReport(childId: child!.id),
+        ] else
           ..._buildReport(report!, child!),
       ],
     );
@@ -224,6 +244,7 @@ class _ParentProgressScreenState extends State<ParentProgressScreen> {
             ],
           ),
         ),
+      TherapistProgressReport(childId: kid.id),
       _Card(
         child: Column(
           children: [
