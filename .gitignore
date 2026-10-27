@@ -43,3 +43,10 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Android Gradle build output
+/android/build/
+
+# Backend secrets: keep these files only on your own laptop
+ai_backend/.env
+ai_backend/firebase-service-account.json
