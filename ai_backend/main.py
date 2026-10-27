@@ -3,15 +3,50 @@ import random
 import threading
 import time
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Header
 from pydantic import BaseModel, Field
 import requests
 
+import os
+from urllib.parse import quote
+from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).resolve().parent / ".env")
+
+import firebase_admin
+from firebase_admin import credentials, auth, firestore
+
+BASE_DIR = Path(__file__).resolve().parent
+
+if not firebase_admin._apps:
+    firebase_admin.initialize_app(
+        credentials.Certificate(
+            str(BASE_DIR / "firebase-service-account.json")
+        ),
+        {"projectId": "talkiepal-80191"}
+    )
+
+print(
+    "FIREBASE PROJECT:",
+    firebase_admin.get_app().project_id,
+    flush=True
+)
+
 app = FastAPI(
-    title="TalkiePal Parent AI",
-    description="AI speech and language development guidance for parents",
+    title="TalkiePal AI Backend",
+    description="Separate AI assistants for parents and therapists, plus children practice generation",
     version="1.0.0"
 )
+
+
+from agora_routes import router as agora_router
+
+app.include_router(agora_router)
+
+# Secure appointment booking (parent -> FastAPI -> Firestore)
+# from talkiepal_booking_routes import router as booking_router
+# app.include_router(booking_router)
 
 OLLAMA_URL = "http://127.0.0.1:11434/api/chat"
 MODEL_NAME = "llama3.2:3b"
@@ -236,6 +271,289 @@ def chat(request: ChatRequest):
             status_code=502,
             detail="Invalid response from Llama."
         )
+
+
+
+# ---------------------------------------------------------------
+# FIREBASE -> SUPABASE: authenticated role for parent and therapist storage
+# ---------------------------------------------------------------
+@app.post("/auth/enable-supabase")
+def enable_supabase_access(authorization: str | None = Header(default=None)):
+    """Grant the Firebase-authenticated Supabase role to active parents or verified therapists.
+
+    The caller must refresh their Firebase ID token after this endpoint succeeds.
+    This does not bypass Supabase Storage RLS policies.
+    """
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Firebase sign-in required.")
+
+    token = authorization[7:].strip()
+    if not token:
+        raise HTTPException(status_code=401, detail="Missing Firebase ID token.")
+
+    try:
+        decoded = auth.verify_id_token(token, check_revoked=True)
+        uid = decoded["uid"]
+    except Exception as exc:
+        raise HTTPException(status_code=401, detail="Invalid Firebase ID token.") from exc
+
+    try:
+        profile = firestore.client().collection("users").document(uid).get()
+        if not profile.exists:
+            raise HTTPException(status_code=403, detail="User profile not found.")
+
+        data = profile.to_dict() or {}
+        role = data.get("role")
+        if role == "parent":
+            if data.get("isActive") is False:
+                raise HTTPException(status_code=403, detail="Active parent account required.")
+        elif role == "therapist":
+            if data.get("isActive") is not True or data.get("verificationStatus") != "verified":
+                raise HTTPException(status_code=403, detail="Verified active therapist required.")
+        else:
+            raise HTTPException(status_code=403, detail="Parent or therapist account required.")
+
+        firebase_user = auth.get_user(uid)
+        claims = dict(firebase_user.custom_claims or {})
+        if claims.get("role") != "authenticated":
+            claims["role"] = "authenticated"
+            auth.set_custom_user_claims(uid, claims)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Unable to configure Supabase access.") from exc
+
+    return {
+        "status": "ready",
+        "accountType": role,
+        "message": "Refresh your Firebase ID token before using Supabase Storage.",
+    }
+
+
+# ---------------------------------------------------------------
+# THERAPIST AI (separate from parent /chat)
+# ---------------------------------------------------------------
+
+THERAPIST_SYSTEM_PROMPT = """
+You are TalkiePal Therapist AI, a professional support assistant for
+verified speech-language therapists working with children aged 2 to 12.
+Respond in clear English. Help with:
+- Speech therapy session planning with goals, timings, and activities.
+- Practice modules for R, S, L, TH and SH sounds, progressing from
+  sound awareness to syllables, words, phrases and connected speech.
+- Age-appropriate home practice suggestions for therapists to review.
+- Interpreting trends in practice scores cautiously, including limitations
+  of automated speech recognition and noisy recordings.
+- Communication supports for autistic children and children with speech delays.
+- Progress-note outlines, caregiver education, and session preparation.
+
+When suggesting a session plan, include objective, materials, activities,
+approximate duration, and a way to record observations.
+Do not claim to have seen a patient's record unless the therapist provides
+anonymized details. Do not invent clinical observations or diagnoses.
+Do not diagnose, prescribe treatment, or claim exercises are universally
+appropriate. A qualified therapist must review all generated suggestions.
+Avoid requesting identifying information about children. Encourage
+individualization and evidence-informed clinical judgment.
+Keep answers practical and structured, normally 120-250 words.
+"""
+
+
+def require_verified_therapist(authorization: str | None) -> str:
+    """Verify Firebase ID token and verified therapist status separately."""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Firebase sign-in required.")
+
+    token = authorization[7:].strip()
+    if not token:
+        raise HTTPException(status_code=401, detail="Missing Firebase ID token.")
+
+    try:
+        decoded = auth.verify_id_token(token, check_revoked=True)
+        uid = decoded["uid"]
+        print("Firebase token verified for UID:", uid, flush=True)
+    except Exception as exc:
+        print("FIREBASE TOKEN ERROR:", type(exc).__name__, str(exc), flush=True)
+        raise HTTPException(status_code=401, detail="Invalid authentication token.") from exc
+
+    try:
+        account = firestore.client().collection("users").document(uid).get()
+    except Exception as exc:
+        print("FIRESTORE BACKEND ERROR:", type(exc).__name__, str(exc), flush=True)
+        raise HTTPException(status_code=503, detail="Unable to verify therapist account.") from exc
+
+    if not account.exists:
+        raise HTTPException(status_code=403, detail="Therapist account not found.")
+
+    data = account.to_dict() or {}
+    if (data.get("role") != "therapist"
+            or data.get("isActive") is not True
+            or data.get("verificationStatus") != "verified"):
+        raise HTTPException(status_code=403, detail="Verified therapist access required.")
+
+    print("Therapist access approved", flush=True)
+    return uid
+
+
+# ---------------------------------------------------------------
+# PRIVATE SUPABASE PHOTOS FOR VERIFIED, ASSIGNED THERAPISTS
+# ---------------------------------------------------------------
+def _valid_storage_id(value: str) -> bool:
+    return bool(value and len(value) <= 128 and value not in (".", "..")
+                and "/" not in value and "\\" not in value)
+
+
+def _active_patient_link(db, therapist_uid: str, parent_id: str,
+                         child_id: str | None = None) -> bool:
+    """Accept active assignments, or legacy active chats with a real child."""
+    assignments = db.collection("therapist_assignments") \
+        .where("therapistUid", "==", therapist_uid) \
+        .where("parentUid", "==", parent_id).stream()
+    for item in assignments:
+        data = item.to_dict() or {}
+        linked_child = str(data.get("childId") or "")
+        if not _valid_storage_id(linked_child):
+            continue
+        if child_id is not None and linked_child != child_id:
+            continue
+        if str(data.get("status", "")).lower() != "active":
+            continue
+        if db.collection("users").document(parent_id).collection("children") \
+                .document(linked_child).get().exists:
+            return True
+
+    chats = db.collection("chats").where("therapistId", "==", therapist_uid) \
+        .where("parentId", "==", parent_id).stream()
+    for item in chats:
+        data = item.to_dict() or {}
+        linked_child = str(data.get("childId") or "")
+        if not _valid_storage_id(linked_child):
+            continue
+        if child_id is not None and linked_child != child_id:
+            continue
+        if str(data.get("status", "active")).lower() != "active":
+            continue
+        if db.collection("users").document(parent_id).collection("children") \
+                .document(linked_child).get().exists:
+            return True
+    return False
+
+
+def _signed_private_photo(bucket: str, path: str) -> dict:
+    """Sign a private object on the server; never expose the service-role key."""
+    supabase_url = os.getenv("SUPABASE_URL", "").rstrip("/")
+    service_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+    if not supabase_url or not service_key:
+        raise HTTPException(status_code=503, detail="Supabase backend credentials not configured.")
+
+    endpoint = f"{supabase_url}/storage/v1/object/sign/{bucket}/{quote(path, safe='/')}"
+    try:
+        response = requests.post(
+            endpoint,
+            headers={"apikey": service_key, "Authorization": f"Bearer {service_key}"},
+            json={"expiresIn": 300}, timeout=15,
+        )
+        if response.status_code == 404:
+            return {"url": None}
+        response.raise_for_status()
+        signed_path = response.json().get("signedURL") or response.json().get("signedUrl")
+        if not isinstance(signed_path, str) or not signed_path:
+            raise ValueError("Supabase returned no signed URL")
+        if signed_path.startswith(("https://", "http://")):
+            url = signed_path
+        elif signed_path.startswith("/storage/v1/"):
+            url = supabase_url + signed_path
+        else:
+            url = supabase_url + "/storage/v1" + (
+                signed_path if signed_path.startswith("/") else "/" + signed_path)
+        return {"url": url}
+    except (requests.RequestException, ValueError) as exc:
+        print(f"SUPABASE PHOTO SIGN ERROR ({bucket}): {type(exc).__name__}: {exc}", flush=True)
+        raise HTTPException(status_code=502, detail="Unable to generate private photo link.") from exc
+
+
+@app.get("/therapist/parents/{parent_id}/photo")
+def therapist_parent_photo(parent_id: str, authorization: str | None = Header(default=None)):
+    therapist_uid = require_verified_therapist(authorization)
+    if not _valid_storage_id(parent_id):
+        raise HTTPException(status_code=400, detail="Invalid parent ID.")
+    try:
+        db = firestore.client()
+        if not _active_patient_link(db, therapist_uid, parent_id):
+            raise HTTPException(status_code=403, detail="No active linked patient for this parent.")
+        parent_doc = db.collection("users").document(parent_id).get()
+        if not parent_doc.exists:
+            raise HTTPException(status_code=404, detail="Parent not found.")
+        parent = parent_doc.to_dict() or {}
+        if parent.get("role") != "parent" or parent.get("isActive") is False:
+            raise HTTPException(status_code=403, detail="Parent account unavailable.")
+        path = str(parent.get("parentPhotoPath") or "").strip() or f"{parent_id}/profile.jpg"
+        if not path.startswith(f"{parent_id}/") or ".." in path.split("/"):
+            raise HTTPException(status_code=403, detail="Invalid stored parent photo path.")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Unable to verify parent access.") from exc
+    return _signed_private_photo("parent-photos", path)
+
+
+@app.get("/therapist/parents/{parent_id}/children/{child_id}/photo")
+def therapist_child_photo(parent_id: str, child_id: str,
+                          authorization: str | None = Header(default=None)):
+    therapist_uid = require_verified_therapist(authorization)
+    if not _valid_storage_id(parent_id) or not _valid_storage_id(child_id):
+        raise HTTPException(status_code=400, detail="Invalid profile ID.")
+    try:
+        db = firestore.client()
+        child_doc = db.collection("users").document(parent_id).collection("children") \
+            .document(child_id).get()
+        if not child_doc.exists:
+            raise HTTPException(status_code=404, detail="Child not found.")
+        if not _active_patient_link(db, therapist_uid, parent_id, child_id):
+            raise HTTPException(status_code=403, detail="No active link to this child.")
+        child = child_doc.to_dict() or {}
+        path = str(child.get("childPhotoPath") or "").strip() or f"{parent_id}/{child_id}/profile.jpg"
+        if not path.startswith(f"{parent_id}/{child_id}/") or ".." in path.split("/"):
+            raise HTTPException(status_code=403, detail="Invalid stored child photo path.")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Unable to verify child access.") from exc
+    return _signed_private_photo("child-photos", path)
+
+
+@app.post("/ai/therapist", response_model=ChatResponse)
+def therapist_chat(request: ChatRequest, authorization: str | None = Header(default=None)):
+    require_verified_therapist(authorization)
+    message = request.message.strip()
+    if not message:
+        raise HTTPException(status_code=400, detail="Message cannot be empty.")
+    try:
+        response = requests.post(
+            OLLAMA_URL,
+            json={
+                "model": MODEL_NAME,
+                "stream": False,
+                "keep_alive": OLLAMA_KEEP_ALIVE,
+                "messages": [
+                    {"role": "system", "content": THERAPIST_SYSTEM_PROMPT},
+                    {"role": "user", "content": message},
+                ],
+                "options": {"temperature": 0.3, "num_predict": 500},
+            },
+            timeout=120,
+        )
+        response.raise_for_status()
+        reply = response.json()["message"]["content"].strip()
+        if not reply:
+            raise ValueError("Empty response from Llama")
+        return ChatResponse(reply=reply)
+    except requests.Timeout:
+        raise HTTPException(status_code=504, detail="Llama took too long to respond.")
+    except requests.RequestException:
+        raise HTTPException(status_code=503, detail="Cannot connect to Llama. Check Ollama.")
+    except (KeyError, TypeError, ValueError):
+        raise HTTPException(status_code=502, detail="Invalid response from Llama.")
 
 
 # ---------------------------------------------------------------
