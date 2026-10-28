@@ -539,21 +539,86 @@ class WordChip extends StatelessWidget {
   }
 }
 
-/// Big emoji in a soft circle.
+/// Big emoji in a soft circle. With [onTap], tapping it plays the word like LISTEN.
 class BigEmoji extends StatelessWidget {
   final String emoji;
   final Color background;
+  final VoidCallback? onTap;
 
-  const BigEmoji({super.key, required this.emoji, required this.background});
+  const BigEmoji({super.key, required this.emoji, required this.background, this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final circle = Container(
       width: 140,
       height: 140,
       alignment: Alignment.center,
       decoration: BoxDecoration(color: background, shape: BoxShape.circle),
       child: Text(emoji, style: const TextStyle(fontSize: 80)),
+    );
+    return onTap == null ? circle : TapToListen(onTap: onTap!, child: circle);
+  }
+}
+
+/// Makes a practice picture a second LISTEN button, because children
+/// often tap the picture. Shows a small 🔊 badge and shrinks a little
+/// while pressed. The page's own LISTEN handler decides whether to play,
+/// so a tap does nothing while the word is playing or the child is speaking.
+class TapToListen extends StatefulWidget {
+  final Widget child;
+  final VoidCallback onTap;
+
+  const TapToListen({super.key, required this.child, required this.onTap});
+
+  @override
+  State<TapToListen> createState() => _TapToListenState();
+}
+
+class _TapToListenState extends State<TapToListen> {
+  bool _pressed = false;
+
+  void _setPressed(bool value) {
+    if (_pressed != value) setState(() => _pressed = value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: 'Listen',
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapDown: (_) => _setPressed(true),
+        onTapUp: (_) => _setPressed(false),
+        onTapCancel: () => _setPressed(false),
+        onTap: widget.onTap,
+        child: AnimatedScale(
+          scale: _pressed ? 0.92 : 1,
+          duration: const Duration(milliseconds: 120),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              widget.child,
+              Positioned(
+                right: 4,
+                bottom: 4,
+                child: Container(
+                  width: 38,
+                  height: 38,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: PracticeColors.listen, width: 2.5),
+                    boxShadow: const [BoxShadow(color: PracticeColors.listenDark, offset: Offset(0, 2))],
+                  ),
+                  child: const Text('🔊', style: TextStyle(fontSize: 17)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

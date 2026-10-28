@@ -307,7 +307,7 @@ class _AiSoundPageState extends State<AiSoundPage> with HoldToSpeak {
       look: _look,
       child: Column(
         children: [
-          BigEmoji(emoji: currentExercise.emoji, background: _look.lightColor),
+          BigEmoji(emoji: currentExercise.emoji, background: _look.lightColor, onTap: _onListen),
           const SizedBox(height: 16),
           Wrap(
             alignment: WrapAlignment.center,

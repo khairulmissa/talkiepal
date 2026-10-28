@@ -220,7 +220,7 @@ class _AiPracticePageState extends State<AiPracticePage> with HoldToSpeak {
           look: look,
           child: Column(
             children: [
-              BigEmoji(emoji: currentExercise.emoji, background: look.lightColor),
+              BigEmoji(emoji: currentExercise.emoji, background: look.lightColor, onTap: _onListen),
               const SizedBox(height: 16),
               Wrap(
                 alignment: WrapAlignment.center,
