@@ -141,16 +141,19 @@ class _PracticeNumbers1To10PageState extends State<PracticeNumbers1To10Page> wit
           look: _look,
           child: Column(
             children: [
-              Container(
-                width: 170,
-                height: 170,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: _look.lightColor, shape: BoxShape.circle),
-                child: Image.asset(
-                  currentExercise['image']!,
-                  fit: BoxFit.contain,
-                  errorBuilder: (context, error, stackTrace) =>
-                      const Center(child: Text('🦖', style: TextStyle(fontSize: 70))),
+              TapToListen(
+                onTap: _onListen,
+                child: Container(
+                  width: 170,
+                  height: 170,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(color: _look.lightColor, shape: BoxShape.circle),
+                  child: Image.asset(
+                    currentExercise['image']!,
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) =>
+                        const Center(child: Text('🦖', style: TextStyle(fontSize: 70))),
+                  ),
                 ),
               ),
               const SizedBox(height: 14),
