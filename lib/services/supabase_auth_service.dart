@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
+import 'package:talkiepal/config/api_config.dart';
 
 class SupabaseAuthService {
   static Future<void> enableSupabaseAccess() async {
@@ -16,7 +17,7 @@ class SupabaseAuthService {
 
     // 2. Send it to your FastAPI backend
     final response = await http.post(
-      Uri.parse('http://192.168.0.139:8000/auth/enable-supabase'),
+      Uri.parse('${ApiConfig.baseUrl}/auth/enable-supabase'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
