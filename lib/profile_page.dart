@@ -5,7 +5,12 @@ import 'package:talkiepal/services/current_kid.dart';
 import 'package:talkiepal/widgets/dino_mascot.dart';
 import 'package:talkiepal/widgets/kids_bottom_nav.dart';
 import 'package:talkiepal/progress_page.dart';
-import '../parent/login_screen.dart';  
+import 'package:talkiepal/parent/kids_profile_selection_screen.dart';
+import 'package:talkiepal/parent/login_screen.dart';
+import 'package:talkiepal/profile/kid_edit_profile_page.dart';
+import 'package:talkiepal/profile/kid_info_pages.dart';
+import 'package:talkiepal/profile/kid_profile_store.dart';
+import 'package:talkiepal/services/parent_store.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -17,6 +22,33 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   bool isNotificationEnabled = true;
   String selectedLanguage = 'English';
+  int? _age;
+  String? _targetSound;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+  }
+
+  /// Fills the card and the preferences from the child's saved profile.
+  Future<void> _loadProfile() async {
+    try {
+      final data = await KidProfileStore.load();
+      if (!mounted || data.isEmpty) return;
+      final language = data['language'];
+      final sound = (data['targetSound'] ?? '').toString().trim();
+      setState(() {
+        if (data['practiceReminders'] is bool) isNotificationEnabled = data['practiceReminders'] as bool;
+        if (language is String && _languages.containsKey(language)) selectedLanguage = language;
+        _age = data['age'] is num ? (data['age'] as num).toInt() : null;
+        _targetSound = sound.isEmpty ? null : sound;
+      });
+    } catch (e) {
+      // Firebase is not set up (e.g. in tests) or the profile cannot be read.
+      debugPrint('[Profile] Could not load child profile: $e');
+    }
+  }
 
   static const Color _cream = Color(0xFFFFF8EC);
   static const Color _plum = Color(0xFF8E5CD9);
@@ -62,21 +94,21 @@ class _ProfilePageState extends State<ProfilePage> {
                             title: 'Edit Profile',
                             subtitle: 'Change your name and photo',
                             iconBackground: const Color(0xFFE3F2FD),
-                            onTap: () => _showComingSoon(context, 'Edit Profile'),
+                            onTap: _openEditProfile,
                           ),
                           _buildMenuItem(
-                            emoji: '🔒',
-                            title: 'Change Password',
-                            subtitle: 'Keep your account safe',
-                            iconBackground: const Color(0xFFFFF3D6),
-                            onTap: () => _showComingSoon(context, 'Change Password'),
+                            emoji: '👫',
+                            title: 'Switch Profile',
+                            subtitle: 'Pick another child',
+                            iconBackground: const Color(0xFFFFE0B2),
+                            onTap: _switchProfile,
                           ),
                           _buildMenuItem(
                             emoji: '📄',
                             title: 'Terms of Use',
                             subtitle: 'Read our rules',
                             iconBackground: const Color(0xFFE8F5E9),
-                            onTap: () => _showComingSoon(context, 'Terms of Use'),
+                            onTap: () => _open(const KidTermsPage()),
                           ),
                         ]),
                         _buildSectionTitle('Preference 🎛️'),
@@ -89,11 +121,7 @@ class _ProfilePageState extends State<ProfilePage> {
                             trailing: Switch(
                               value: isNotificationEnabled,
                               activeTrackColor: _plum,
-                              onChanged: (value) {
-                                setState(() {
-                                  isNotificationEnabled = value;
-                                });
-                              },
+                              onChanged: _setReminders,
                             ),
                           ),
                           _buildMenuItem(
@@ -108,7 +136,7 @@ class _ProfilePageState extends State<ProfilePage> {
                             title: 'FAQ',
                             subtitle: 'Get answers quickly',
                             iconBackground: const Color(0xFFF3E5F5),
-                            onTap: () => _showComingSoon(context, 'FAQ'),
+                            onTap: () => _open(const KidFaqPage()),
                           ),
                         ]),
                         const SizedBox(height: 20),
@@ -181,7 +209,33 @@ class _ProfilePageState extends State<ProfilePage> {
               style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: _plumDark),
             ),
           ),
+          if (_age != null || _targetSound != null) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              alignment: WrapAlignment.center,
+              children: [
+                if (_age != null) _buildInfoChip('🎂 $_age years old'),
+                if (_targetSound != null) _buildInfoChip('🔤 Sound: $_targetSound'),
+              ],
+            ),
+          ],
         ],
+      ),
+    );
+  }
+
+  Widget _buildInfoChip(String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.25),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.white),
       ),
     );
   }
@@ -292,10 +346,15 @@ class _ProfilePageState extends State<ProfilePage> {
               .toList(),
           onChanged: (String? newValue) {
             if (newValue == null) return;
+            final previous = selectedLanguage;
             setState(() {
               selectedLanguage = newValue;
             });
-            _showComingSoon(context, 'Language changed to $newValue');
+            _savePreference(
+              language: newValue,
+              message: 'Language saved: $newValue 🌐',
+              undo: () => setState(() => selectedLanguage = previous),
+            );
           },
         ),
       ),
@@ -352,13 +411,76 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  void _showComingSoon(BuildContext context, String feature) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$feature coming soon! ✨'),
-        backgroundColor: const Color(0xFF8B5E9E),
-        duration: const Duration(seconds: 2),
-      ),
+  Future<void> _open(Widget page) {
+    return Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+  }
+
+  Future<void> _openEditProfile() async {
+    await _open(const KidEditProfilePage());
+    // Show the new name and photo.
+    if (mounted) setState(() {});
+  }
+
+  void _switchProfile() {
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const KidsProfileSelectionScreen()),
+      (route) => route.isFirst,
+    );
+  }
+
+  void _setReminders(bool value) {
+    setState(() => isNotificationEnabled = value);
+    _savePreference(
+      practiceReminders: value,
+      message: value ? 'Practice reminders on 🔔' : 'Practice reminders off',
+      undo: () => setState(() => isNotificationEnabled = !value),
+    );
+  }
+
+  /// Saves a preference in the child's profile. [undo] puts the switch back if saving fails.
+  Future<void> _savePreference({
+    bool? practiceReminders,
+    String? language,
+    required String message,
+    VoidCallback? undo,
+  }) async {
+    try {
+      await KidProfileStore.savePreferences(practiceReminders: practiceReminders, language: language);
+      _showMessage(message);
+    } catch (e) {
+      if (mounted) undo?.call();
+      _showMessage('Could not save. Please try again.');
+    }
+  }
+
+  void _showMessage(String text) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(text),
+          backgroundColor: const Color(0xFF8B5E9E),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+  }
+
+  Future<void> _logout() async {
+    try {
+      await ParentStore.instance.signOut();
+    } catch (e) {
+      debugPrint('[Profile] Sign out failed: $e');
+    }
+    CurrentKid.id = null;
+    CurrentKid.name = null;
+    CurrentKid.photo = null;
+    if (!mounted) return;
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (context) => const LoginScreen()),
+      (route) => false,
     );
   }
 
@@ -394,15 +516,7 @@ class _ProfilePageState extends State<ProfilePage> {
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
-                
-                // CHANGED: Navigate to LoginScreen and clear all previous routes
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const LoginScreen(),
-                  ),
-                  (route) => false,  // This removes all previous routes
-                );
+                _logout();
               },
               child: const Text(
                 'Logout',

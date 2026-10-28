@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import 'widgets/parent_form.dart';
@@ -20,6 +21,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
 
   // Which fields show their text.
   final Set<TextEditingController> _shown = {};
+  bool _saving = false;
 
   @override
   void dispose() {
@@ -53,17 +55,62 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     );
   }
 
-  void changePassword() {
-    if (!formKey.currentState!.validate()) return;
+  Future<void> changePassword() async {
+    if (_saving || !formKey.currentState!.validate()) return;
     if (newPasswordController.text != confirmPasswordController.text) {
       _tell('Password does not match');
       return;
     }
-    _tell('Password changed successfully');
-    Navigator.pop(context);
+    final user = FirebaseAuth.instance.currentUser;
+    final email = user?.email;
+    if (user == null || email == null) {
+      _tell('Please sign in again.');
+      return;
+    }
+    // Google and Facebook accounts have no TalkiePal password to change.
+    if (!user.providerData.any((p) => p.providerId == EmailAuthProvider.PROVIDER_ID)) {
+      _tell('You signed in with Google or Facebook. Change your password there.');
+      return;
+    }
+
+    setState(() => _saving = true);
+    try {
+      // Firebase asks for the current password again before a password change.
+      await user.reauthenticateWithCredential(
+        EmailAuthProvider.credential(email: email, password: currentPasswordController.text),
+      );
+      await user.updatePassword(newPasswordController.text);
+      _tell('Password changed successfully');
+      if (mounted) Navigator.pop(context);
+    } on FirebaseAuthException catch (e) {
+      _tell(_errorText(e));
+    } catch (e) {
+      _tell('Could not change password: $e');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  String _errorText(FirebaseAuthException e) {
+    switch (e.code) {
+      case 'wrong-password':
+      case 'invalid-credential':
+        return 'Current password is incorrect.';
+      case 'weak-password':
+        return 'New password is too weak.';
+      case 'too-many-requests':
+        return 'Too many attempts. Please try again later.';
+      case 'network-request-failed':
+        return 'Network error. Check your internet connection.';
+      case 'requires-recent-login':
+        return 'Please log out and log in again, then try once more.';
+      default:
+        return e.message ?? 'Could not change password.';
+    }
   }
 
   void _tell(String text) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(text)));
@@ -82,7 +129,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       key: formKey,
       child: ParentPage(
         header: const ParentHeader(title: 'Change password', subtitle: 'Keep your account safe', back: true),
-        bottom: ParentSaveButton(label: 'Update password', onPressed: changePassword),
+        bottom: ParentSaveButton(label: 'Update password', busy: _saving, onPressed: changePassword),
         children: [
           ParentCard(
             child: Column(
