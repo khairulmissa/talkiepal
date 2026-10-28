@@ -5,13 +5,11 @@ import 'package:talkiepal/services/current_kid.dart';
 import 'package:talkiepal/widgets/dino_mascot.dart';
 import 'package:talkiepal/widgets/kids_bottom_nav.dart';
 import 'package:talkiepal/progress_page.dart';
-import 'package:talkiepal/parent/change_password_screen.dart';
 import 'package:talkiepal/parent/kids_profile_selection_screen.dart';
 import 'package:talkiepal/parent/login_screen.dart';
 import 'package:talkiepal/profile/kid_edit_profile_page.dart';
 import 'package:talkiepal/profile/kid_info_pages.dart';
 import 'package:talkiepal/profile/kid_profile_store.dart';
-import 'package:talkiepal/profile/parent_gate.dart';
 import 'package:talkiepal/services/parent_store.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -104,13 +102,6 @@ class _ProfilePageState extends State<ProfilePage> {
                             subtitle: 'Pick another child',
                             iconBackground: const Color(0xFFFFE0B2),
                             onTap: _switchProfile,
-                          ),
-                          _buildMenuItem(
-                            emoji: '🔒',
-                            title: 'Change Password',
-                            subtitle: 'For grown-ups only',
-                            iconBackground: const Color(0xFFFFF3D6),
-                            onTap: _openChangePassword,
                           ),
                           _buildMenuItem(
                             emoji: '📄',
@@ -428,12 +419,6 @@ class _ProfilePageState extends State<ProfilePage> {
     await _open(const KidEditProfilePage());
     // Show the new name and photo.
     if (mounted) setState(() {});
-  }
-
-  Future<void> _openChangePassword() async {
-    if (await askGrownUp(context) && mounted) {
-      await _open(const ChangePasswordScreen());
-    }
   }
 
   void _switchProfile() {
