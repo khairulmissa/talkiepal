@@ -1,3 +1,5 @@
+import 'package:talkiepal/practice/widgets/score_dialog.dart';
+
 /// How the child did on one word, letter, sentence or question.
 class PracticeItemResult {
   final String label;
@@ -27,10 +29,15 @@ class PracticeSession {
   final bool isQuiz;
 
   final DateTime startedAt = DateTime.now();
+
+  /// When the child last spoke or answered; the practice time ends here, so
+  /// time spent looking at the results screen is not counted.
+  DateTime? lastTryAt;
+
   final Map<String, PracticeItemResult> _items = {};
 
-  /// Speaking score needed to pass an item.
-  static const int passScore = 70;
+  /// Speaking score needed to pass an item; the same line the score popup uses.
+  static const int passScore = ScoreBand.pass;
 
   PracticeSession({this.isQuiz = false});
 
@@ -39,21 +46,34 @@ class PracticeSession {
     _items.putIfAbsent(label, () => PracticeItemResult(label, emoji));
   }
 
-  /// A speaking try: keeps the best score and what was heard then.
-  void recordScore(String label, int score, {List<String> heard = const []}) {
+  PracticeItemResult _newTry(String label) {
     final item = _items.putIfAbsent(label, () => PracticeItemResult(label, null));
     item.tries++;
-    if (item.bestScore == null || score > item.bestScore!) {
-      item.bestScore = score;
-      item.heard = heard.isEmpty ? null : heard.first;
+    lastTryAt = DateTime.now();
+    return item;
+  }
+
+  /// A speaking try: keeps the best score and what was heard then.
+  void recordScore(String label, int score, {List<String> heard = const []}) {
+    final item = _newTry(label);
+    final clamped = score.clamp(0, 100);
+    final heardNow = heard.isEmpty ? null : heard.first;
+
+    if (item.bestScore == null || clamped > item.bestScore!) {
+      item.bestScore = clamped;
+      item.heard = heardNow;
+    } else if (clamped == item.bestScore && item.heard == null) {
+      // Same score, but this time the phone caught what was said.
+      item.heard = heardNow;
     }
   }
 
   /// A question answer: 100 when right on the first try, 0 otherwise.
+  /// The first answer decides, so a question that was tried but never
+  /// answered right shows 0 instead of looking skipped.
   void recordAnswer(String label, {required bool correct}) {
-    final item = _items.putIfAbsent(label, () => PracticeItemResult(label, null));
-    item.tries++;
-    if (correct) item.bestScore ??= item.tries == 1 ? 100 : 0;
+    final item = _newTry(label);
+    if (item.tries == 1) item.bestScore = correct ? 100 : 0;
   }
 
   List<PracticeItemResult> get items => _items.values.toList();
@@ -69,7 +89,8 @@ class PracticeSession {
 
   int get totalTries => _items.values.fold<int>(0, (sum, item) => sum + item.tries);
 
-  Duration get duration => DateTime.now().difference(startedAt);
+  /// Time from the start to the last try (zero if the child did nothing).
+  Duration get duration => (lastTryAt ?? startedAt).difference(startedAt);
 
   /// Items to practice again: below the pass score, or skipped.
   List<PracticeItemResult> get hardItems =>
