@@ -12,6 +12,7 @@ import 'parent/splash_screen.dart';
 import 'services/current_kid.dart';
 import 'package:talkiepal/widgets/kids_bottom_nav.dart';
 import 'package:talkiepal/progress_page.dart';
+import 'package:talkiepal/parent/parent_home_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -239,18 +240,28 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         ),
         const SizedBox(width: 12),
         // Profile button (switch to parent profile)
-        Container(
-          width: 54,
-          height: 54,
-          decoration: BoxDecoration(
-            color: const Color(0xFFE8D5F0),
-            shape: BoxShape.circle,
-            border: Border.all(color: Colors.white, width: 3),
-            boxShadow: const [
-              BoxShadow(color: Color(0x22000000), blurRadius: 8, offset: Offset(0, 3)),
-            ],
+                // Profile button (switch to parent page)
+        GestureDetector(
+                    onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              settings: const RouteSettings(name: 'parent_home'),
+              builder: (_) => const ParentHomeScreen(),
+            ),
           ),
-          child: const Icon(Icons.person_rounded, size: 30, color: Color(0xFF8B5E9E)),
+          child: Container(
+            width: 54,
+            height: 54,
+            decoration: BoxDecoration(
+              color: const Color(0xFFE8D5F0),
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 3),
+              boxShadow: const [
+                BoxShadow(color: Color(0x22000000), blurRadius: 8, offset: Offset(0, 3)),
+              ],
+            ),
+            child: const Icon(Icons.person_rounded, size: 30, color: Color(0xFF8B5E9E)),
+          ),
         ),
       ],
     );
