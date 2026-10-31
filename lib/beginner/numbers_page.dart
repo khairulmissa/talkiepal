@@ -24,19 +24,22 @@ class _PracticeNumbers1To10PageState extends State<PracticeNumbers1To10Page> wit
   bool isPlaying = false;
   int currentIndex = 0;
 
-  // List of 10 exercises (1 to 10)
-  final List<Map<String, String>> _allExercises = [
-    {'number': '1', 'word': 'ONE', 'focus': 'Numbers', 'image': 'lib/assets/images/numbers/1.png'},
-    {'number': '2', 'word': 'TWO', 'focus': 'Numbers', 'image': 'lib/assets/images/numbers/2.png'},
-    {'number': '3', 'word': 'THREE', 'focus': 'Numbers', 'image': 'lib/assets/images/numbers/3.png'},
-    {'number': '4', 'word': 'FOUR', 'focus': 'Numbers', 'image': 'lib/assets/images/numbers/4.png'},
-    {'number': '5', 'word': 'FIVE', 'focus': 'Numbers', 'image': 'lib/assets/images/numbers/5.png'},
-    {'number': '6', 'word': 'SIX', 'focus': 'Numbers', 'image': 'lib/assets/images/numbers/6.png'},
-    {'number': '7', 'word': 'SEVEN', 'focus': 'Numbers', 'image': 'lib/assets/images/numbers/7.png'},
-    {'number': '8', 'word': 'EIGHT', 'focus': 'Numbers', 'image': 'lib/assets/images/numbers/8.png'},
-    {'number': '9', 'word': 'NINE', 'focus': 'Numbers', 'image': 'lib/assets/images/numbers/9.png'},
-    {'number': '10', 'word': 'TEN', 'focus': 'Numbers', 'image': 'lib/assets/images/numbers/10.png'},
+  /// Maps numbers to their English spelling.
+  static const List<String> _numberWords = [
+    'ONE', 'TWO', 'THREE', 'FOUR', 'FIVE',
+    'SIX', 'SEVEN', 'EIGHT', 'NINE', 'TEN',
   ];
+
+  // Generated automatically for 1 to 10 to avoid manual repetition.
+  final List<Map<String, String>> _allExercises = List.generate(10, (index) {
+    final number = (index + 1).toString();
+    return {
+      'number': number,
+      'word': _numberWords[index],
+      'focus': 'Numbers',
+      'image': 'lib/assets/images/numbers/$number.png',
+    };
+  });
 
   late final List<Map<String, String>> exercises = widget.only == null
       ? _allExercises
@@ -101,12 +104,18 @@ class _PracticeNumbers1To10PageState extends State<PracticeNumbers1To10Page> wit
       isPlaying = true;
     });
 
-    // The word stays lit while the voice says it.
-    await SpeechService.instance.speak(toSpoken(currentExercise['word']!));
-    if (!mounted) return;
-    setState(() {
-      isPlaying = false;
-    });
+    try {
+      // The word stays lit while the voice says it.
+      await SpeechService.instance.speak(toSpoken(currentExercise['word']!));
+    } catch (e) {
+      debugPrint("Error playing audio: $e");
+    } finally {
+      if (mounted) {
+        setState(() {
+          isPlaying = false;
+        });
+      }
+    }
   }
 
   @override
