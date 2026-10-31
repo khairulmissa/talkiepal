@@ -10,44 +10,47 @@ class MinimalPair {
   final PracticeExercise b;
 
   const MinimalPair(this.a, this.b);
+
+  Iterable<String> get words => [a.word, b.word];
 }
 
 class MinimalPairResult {
   final List<MinimalPair> pairs;
 
-  /// True when the AI could not be reached and only offline pairs were used.
+  /// True when the backend was unreachable and only offline pairs were used.
   final bool isOffline;
 
   const MinimalPairResult({required this.pairs, required this.isOffline});
 }
 
-/// Gets minimal pairs from the AI backend, topped up with offline pairs.
-class MinimalPairService {
-  // Backup pairs: [word A, emoji A, word B, emoji B].
-  static const List<List<String>> _offlinePairs = [
-    ['CAT', '🐱', 'RAT', '🐭'],
-    ['FAN', '🪭', 'VAN', '🚐'],
-    ['BEAR', '🐻', 'PEAR', '🍐'],
-    ['MOUSE', '🐭', 'HOUSE', '🏠'],
-    ['SOCK', '🧦', 'ROCK', '🪨'],
-    ['BOAT', '🚤', 'GOAT', '🐐'],
-    ['RING', '💍', 'KING', '🤴'],
-    ['FOX', '🦊', 'BOX', '📦'],
-    ['NOSE', '👃', 'ROSE', '🌹'],
-    ['TIE', '👔', 'PIE', '🥧'],
-    ['MAP', '🗺️', 'CAP', '🧢'],
-    ['COAT', '🧥', 'GOAT', '🐐'],
-    ['DOG', '🐶', 'LOG', '🪵'],
-    ['FISH', '🐟', 'DISH', '🍽️'],
-    ['HAT', '👒', 'BAT', '🦇'],
-    ['PEN', '🖊️', 'TEN', '🔟'],
-    ['SHIP', '🚢', 'SHEEP', '🐑'],
-    ['BEE', '🐝', 'TEA', '🍵'],
-    ['MOON', '🌙', 'SPOON', '🥄'],
-    ['CAKE', '🎂', 'SNAKE', '🐍'],
+/// Fetches minimal pairs from the AI backend, topped up with offline pairs.
+abstract final class MinimalPairService {
+  static const int _recentLimit = 30;
+
+  static const List<(String, String, String, String)> _offlinePairs = [
+    ('CAT', '🐱', 'RAT', '🐭'),
+    ('FAN', '🪭', 'VAN', '🚐'),
+    ('BEAR', '🐻', 'PEAR', '🍐'),
+    ('MOUSE', '🐭', 'HOUSE', '🏠'),
+    ('SOCK', '🧦', 'ROCK', '🪨'),
+    ('BOAT', '🚤', 'GOAT', '🐐'),
+    ('RING', '💍', 'KING', '🤴'),
+    ('FOX', '🦊', 'BOX', '📦'),
+    ('NOSE', '👃', 'ROSE', '🌹'),
+    ('TIE', '👔', 'PIE', '🥧'),
+    ('MAP', '🗺️', 'CAP', '🧢'),
+    ('COAT', '🧥', 'GOAT', '🐐'),
+    ('DOG', '🐶', 'LOG', '🪵'),
+    ('FISH', '🐟', 'DISH', '🍽️'),
+    ('HAT', '👒', 'BAT', '🦇'),
+    ('PEN', '🖊️', 'TEN', '🔟'),
+    ('SHIP', '🚢', 'SHEEP', '🐑'),
+    ('BEE', '🐝', 'TEA', '🍵'),
+    ('MOON', '🌙', 'SPOON', '🥄'),
+    ('CAKE', '🎂', 'SNAKE', '🐍'),
   ];
 
-  // Words shown in recent games, sent to the AI so it picks new ones.
+  /// Recently shown words, sent to the backend so it avoids repeats.
   static final List<String> _recentWords = [];
 
   static Future<MinimalPairResult> getPairs({int count = 10}) async {
@@ -56,46 +59,42 @@ class MinimalPairService {
     var isOffline = false;
 
     try {
-      final data = await postToBackend(ApiConfig.generateMinimalPairsUrl, {
-        'count': count,
-        'exclude': _recentWords,
-      });
+      final data = await postToBackend(ApiConfig.generateMinimalPairsUrl, {'count': count, 'exclude': _recentWords});
 
-      pairs = (data['pairs'] as List).map((item) {
-        return MinimalPair(_word(item['a']), _word(item['b']));
-      }).toList();
+      pairs = [for (final item in data['pairs'] as List) MinimalPair(_parseWord(item['a']), _parseWord(item['b']))];
 
-      _recentWords.addAll(pairs.expand((p) => [p.a.word, p.b.word]));
-      if (_recentWords.length > 30) {
-        _recentWords.removeRange(0, _recentWords.length - 30);
+      _recentWords.addAll(pairs.expand((p) => p.words));
+      if (_recentWords.length > _recentLimit) {
+        _recentWords.removeRange(0, _recentWords.length - _recentLimit);
       }
     } catch (_) {
       isOffline = true;
     }
 
-    // Top up with offline pairs when the AI gave too few.
     if (pairs.length < count) {
-      final used = pairs.expand((p) => [p.a.word, p.b.word]).toSet();
-      final extra = [..._offlinePairs]..shuffle(random);
-      for (final item in extra) {
-        if (pairs.length >= count) break;
-        if (used.contains(item[0]) || used.contains(item[2])) continue;
-        pairs.add(MinimalPair(
-          PracticeExercise(word: item[0], emoji: item[1]),
-          PracticeExercise(word: item[2], emoji: item[3]),
-        ));
-        used.addAll([item[0], item[2]]);
-      }
+      _topUpWithOffline(pairs, count, random);
     }
 
     pairs.shuffle(random);
     return MinimalPairResult(pairs: pairs, isOffline: isOffline);
   }
 
-  static PracticeExercise _word(dynamic item) {
-    return PracticeExercise(
-      word: (item['word'] as String).toUpperCase(),
-      emoji: item['emoji'] as String,
-    );
+  static void _topUpWithOffline(List<MinimalPair> pairs, int count, Random random) {
+    final used = pairs.expand((p) => p.words).toSet();
+    final candidates = [..._offlinePairs]..shuffle(random);
+
+    for (final (wordA, emojiA, wordB, emojiB) in candidates) {
+      if (pairs.length >= count) break;
+      if (used.contains(wordA) || used.contains(wordB)) continue;
+
+      pairs.add(
+        MinimalPair(PracticeExercise(word: wordA, emoji: emojiA), PracticeExercise(word: wordB, emoji: emojiB)),
+      );
+      used.addAll([wordA, wordB]);
+    }
+  }
+
+  static PracticeExercise _parseWord(dynamic item) {
+    return PracticeExercise(word: (item['word'] as String).toUpperCase(), emoji: item['emoji'] as String);
   }
 }
