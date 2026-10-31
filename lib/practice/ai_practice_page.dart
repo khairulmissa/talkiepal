@@ -48,12 +48,18 @@ class _AiPracticePageState extends State<AiPracticePage> with HoldToSpeak {
 
   // Bumped whenever the exercise changes, so an old highlight run stops.
   int _highlightRun = 0;
+
+  // Bumped on every load, so a slow AI answer cannot replace newer words.
+  int _loadRun = 0;
   List<PracticeExercise> exercises = [];
 
   // Scores and tries for the results screen.
   PracticeSession session = PracticeSession();
 
   PracticeExercise get currentExercise => exercises[currentIndex];
+
+  /// True once the child has spoken at least one word in this round.
+  bool get _hasProgress => session.items.any((item) => item.tries > 0);
 
   @override
   void initState() {
@@ -62,6 +68,7 @@ class _AiPracticePageState extends State<AiPracticePage> with HoldToSpeak {
   }
 
   Future<void> _loadExercises() async {
+    final run = ++_loadRun;
     setState(() {
       isLoading = true;
       currentIndex = 0;
@@ -73,7 +80,7 @@ class _AiPracticePageState extends State<AiPracticePage> with HoldToSpeak {
         ? ExerciseResult(exercises: given, isOffline: false)
         : await ExerciseService.getExercises(level: widget.level, topic: widget.topic, count: widget.count);
 
-    if (!mounted) return;
+    if (!mounted || run != _loadRun) return;
 
     setState(() {
       exercises = result.exercises;
@@ -84,7 +91,7 @@ class _AiPracticePageState extends State<AiPracticePage> with HoldToSpeak {
       isLoading = false;
     });
 
-    if (result.isOffline) {
+    if (result.isOffline && exercises.isNotEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('📴 AI is offline. Using practice words instead.'),
@@ -93,6 +100,32 @@ class _AiPracticePageState extends State<AiPracticePage> with HoldToSpeak {
         ),
       );
     }
+  }
+
+  /// New words wipe this round's scores, so ask first once the child has started.
+  Future<void> _onRefresh() async {
+    if (_hasProgress) {
+      final sure = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: const Text('Get new words? 🔄'),
+          content: const Text('Your stars for these words will be lost.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('KEEP GOING'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('NEW WORDS'),
+            ),
+          ],
+        ),
+      );
+      if (sure != true || !mounted) return;
+    }
+    await _loadExercises();
   }
 
   /// Shows the results; "practice again" opens just the hard words.
@@ -117,8 +150,6 @@ class _AiPracticePageState extends State<AiPracticePage> with HoldToSpeak {
     );
   }
 
-  List<String> get currentWords => currentExercise.word.split(' ');
-
   // Call inside setState.
   void _stopHighlight() {
     SpeechService.instance.stop();
@@ -129,7 +160,7 @@ class _AiPracticePageState extends State<AiPracticePage> with HoldToSpeak {
   }
 
   Future<void> _onListen() async {
-    if (isPlaying || isListening) return;
+    if (isPlaying || isListening || exercises.isEmpty) return;
     final run = ++_highlightRun;
     setState(() {
       isPlaying = true;
@@ -191,6 +222,8 @@ class _AiPracticePageState extends State<AiPracticePage> with HoldToSpeak {
       heard: check.heard,
       nextLabel: isLastExercise ? 'FINISH →' : 'NEXT →',
       onNext: _goToNextExercise,
+      // Hear the word again before the next try, as the dialog suggests.
+      onTryAgain: _onListen,
     );
   }
 
@@ -211,43 +244,87 @@ class _AiPracticePageState extends State<AiPracticePage> with HoldToSpeak {
       total: exercises.length,
       dinoTip: _dinoTip,
       isLoading: isLoading,
-      onRefresh: _loadExercises,
+      onRefresh: _onRefresh,
       onNavTap: _onNavTap,
-      children: isLoading || exercises.isEmpty
+      children: isLoading
           ? const []
-          : [
-        PracticeCard(
-          look: look,
-          child: Column(
-            children: [
-              BigEmoji(emoji: currentExercise.emoji, background: look.lightColor, onTap: _onListen),
-              const SizedBox(height: 16),
-              Wrap(
-                alignment: WrapAlignment.center,
-                spacing: 6,
-                runSpacing: 6,
-                children: [
-                  for (var i = 0; i < currentWords.length; i++)
-                    WordChip(
-                      text: currentWords[i],
-                      isLit: i == highlightedWord,
-                      litColor: highlightColor,
-                    ),
-                ],
-              ),
-            ],
+          : exercises.isEmpty
+              ? [_buildNoWordsCard(look)]
+              : _buildExercise(look),
+    );
+  }
+
+  List<Widget> _buildExercise(PracticeLook look) {
+    final words = currentExercise.word.split(' ');
+
+    return [
+      PracticeCard(
+        look: look,
+        child: Column(
+          children: [
+            BigEmoji(emoji: currentExercise.emoji, background: look.lightColor, onTap: _onListen),
+            const SizedBox(height: 16),
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (var i = 0; i < words.length; i++)
+                  WordChip(
+                    text: words[i],
+                    isLit: i == highlightedWord,
+                    litColor: highlightColor,
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+      const SizedBox(height: 22),
+      ListenSpeakButtons(
+        onListen: _onListen,
+        onSpeakDown: onSpeakDown,
+        onSpeakUp: onSpeakUp,
+        isPlaying: isPlaying,
+        isListening: isListening,
+        isMicReady: isMicReady,
+      ),
+    ];
+  }
+
+  /// Shown when neither the AI nor the backup list had words for this topic.
+  Widget _buildNoWordsCard(PracticeLook look) {
+    return PracticeCard(
+      look: look,
+      child: Column(
+        children: [
+          const Text('🦖💤', style: TextStyle(fontSize: 56)),
+          const SizedBox(height: 12),
+          Text(
+            'Dino could not find any words',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: look.darkColor),
           ),
-        ),
-        const SizedBox(height: 22),
-        ListenSpeakButtons(
-          onListen: _onListen,
-          onSpeakDown: onSpeakDown,
-          onSpeakUp: onSpeakUp,
-          isPlaying: isPlaying,
-          isListening: isListening,
-          isMicReady: isMicReady,
-        ),
-      ],
+          const SizedBox(height: 6),
+          const Text(
+            'Check the internet, then try again.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF7A6A85)),
+          ),
+          const SizedBox(height: 18),
+          ElevatedButton.icon(
+            onPressed: _loadExercises,
+            icon: const Icon(Icons.refresh_rounded),
+            label: const Text('TRY AGAIN', style: TextStyle(fontWeight: FontWeight.w900)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: look.color,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -255,25 +332,16 @@ class _AiPracticePageState extends State<AiPracticePage> with HoldToSpeak {
     switch (tab) {
       case KidsTab.home:
         goToKidsHome(context);
-        break;
       case KidsTab.game:
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const GamePage()),
-        );
-        break;
+        _openTab(const GamePage());
       case KidsTab.progress:
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const ProgressPage()),
-        );
-        break;
+        _openTab(const ProgressPage());
       case KidsTab.profile:
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const ProfilePage()),
-        );
-        break;
+        _openTab(const ProfilePage());
     }
+  }
+
+  void _openTab(Widget page) {
+    Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => page));
   }
 }
