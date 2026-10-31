@@ -83,7 +83,6 @@ class PracticeScaffold extends StatelessWidget {
       backgroundColor: _cream,
       body: Stack(
         children: [
-          // Soft coloured circles in the background
           Positioned(top: -50, right: -50, child: _buildBlob(170, look.lightColor)),
           Positioned(top: 520, left: -80, child: _buildBlob(160, const Color(0xFFFFE0F0))),
           Positioned(bottom: 140, right: -60, child: _buildBlob(170, const Color(0xFFE3EEFF))),
@@ -128,16 +127,20 @@ class PracticeScaffold extends StatelessWidget {
   Widget _buildCircleButton(IconData icon, VoidCallback? onTap) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        width: 46,
-        height: 46,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          shape: BoxShape.circle,
-          border: Border.all(color: look.color, width: 2.5),
-          boxShadow: [BoxShadow(color: look.darkColor, offset: const Offset(0, 3))],
+      child: AnimatedOpacity(
+        opacity: onTap == null ? 0.4 : 1,
+        duration: const Duration(milliseconds: 150),
+        child: Container(
+          width: 46,
+          height: 46,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            shape: BoxShape.circle,
+            border: Border.all(color: look.color, width: 2.5),
+            boxShadow: [BoxShadow(color: look.darkColor, offset: const Offset(0, 3))],
+          ),
+          child: Icon(icon, color: look.darkColor),
         ),
-        child: Icon(icon, color: look.darkColor),
       ),
     );
   }
@@ -327,35 +330,39 @@ class ChunkyButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Opacity(
-        opacity: busy ? 0.7 : 1,
-        child: Container(
-          padding: EdgeInsets.symmetric(vertical: small ? 12 : 16, horizontal: 8),
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(26),
-            border: Border.all(color: Colors.white, width: 3),
-            boxShadow: [BoxShadow(color: darkColor, offset: const Offset(0, 6))],
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(emoji, style: TextStyle(fontSize: small ? 20 : 24)),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Text(
-                  busy ? '...' : label,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: small ? 16 : 19,
-                    fontWeight: FontWeight.w900,
-                    color: Colors.white,
+    return Semantics(
+      button: true,
+      label: label,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Opacity(
+          opacity: busy ? 0.7 : 1,
+          child: Container(
+            padding: EdgeInsets.symmetric(vertical: small ? 12 : 16, horizontal: 8),
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(26),
+              border: Border.all(color: Colors.white, width: 3),
+              boxShadow: [BoxShadow(color: darkColor, offset: const Offset(0, 6))],
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(emoji, style: TextStyle(fontSize: small ? 20 : 24)),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    busy ? '...' : label,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: small ? 16 : 19,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -364,8 +371,6 @@ class ChunkyButton extends StatelessWidget {
 }
 
 /// LISTEN and SPEAK buttons side by side.
-/// SPEAK is held down while the child talks: it turns red once the phone is
-/// really listening.
 class ListenSpeakButtons extends StatelessWidget {
   final VoidCallback onListen;
   final VoidCallback onSpeakDown;
@@ -412,9 +417,9 @@ class ListenSpeakButtons extends StatelessWidget {
   }
 }
 
-/// Big button the child holds while talking.
+/// Button the child holds while talking.
 /// HOLD & SPEAK → GET READY... (phone starting) → 🔴 LISTENING... (talk now).
-class HoldToSpeakButton extends StatelessWidget {
+class HoldToSpeakButton extends StatefulWidget {
   final VoidCallback onDown;
   final VoidCallback onUp;
   final bool isListening;
@@ -428,11 +433,35 @@ class HoldToSpeakButton extends StatelessWidget {
     required this.isMicReady,
   });
 
+  @override
+  State<HoldToSpeakButton> createState() => _HoldToSpeakButtonState();
+}
+
+class _HoldToSpeakButtonState extends State<HoldToSpeakButton> {
   static const Color _live = Color(0xFFE53935);
   static const Color _liveDark = Color(0xFFB71C1C);
 
+  // Only the first finger counts, so a second finger or a palm touching
+  // the button cannot stop the recording early.
+  int? _pointer;
+
+  void _down(PointerDownEvent event) {
+    if (_pointer != null) return;
+    _pointer = event.pointer;
+    widget.onDown();
+  }
+
+  void _up(PointerEvent event) {
+    if (event.pointer != _pointer) return;
+    _pointer = null;
+    widget.onUp();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isMicReady = widget.isMicReady;
+    final isListening = widget.isListening;
+
     final String emoji;
     final String label;
     if (isMicReady) {
@@ -449,37 +478,41 @@ class HoldToSpeakButton extends StatelessWidget {
     final color = isMicReady ? _live : PracticeColors.speak;
     final dark = isMicReady ? _liveDark : PracticeColors.speakDark;
 
-    return Listener(
-      onPointerDown: (_) => onDown(),
-      onPointerUp: (_) => onUp(),
-      onPointerCancel: (_) => onUp(),
-      child: AnimatedScale(
-        scale: isMicReady ? 1.06 : 1,
-        duration: const Duration(milliseconds: 150),
-        child: AnimatedContainer(
+    return Semantics(
+      button: true,
+      label: label,
+      child: Listener(
+        onPointerDown: _down,
+        onPointerUp: _up,
+        onPointerCancel: _up,
+        child: AnimatedScale(
+          scale: isMicReady ? 1.06 : 1,
           duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(26),
-            border: Border.all(color: Colors.white, width: isMicReady ? 5 : 3),
-            boxShadow: [BoxShadow(color: dark, offset: Offset(0, isListening ? 2 : 6))],
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(emoji, style: const TextStyle(fontSize: 22)),
-              const SizedBox(width: 6),
-              Flexible(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    label,
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(26),
+              border: Border.all(color: Colors.white, width: isMicReady ? 5 : 3),
+              boxShadow: [BoxShadow(color: dark, offset: Offset(0, isListening ? 2 : 6))],
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(emoji, style: const TextStyle(fontSize: 22)),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      label,
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white),
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -560,10 +593,8 @@ class BigEmoji extends StatelessWidget {
   }
 }
 
-/// Makes a practice picture a second LISTEN button, because children
-/// often tap the picture. Shows a small 🔊 badge and shrinks a little
-/// while pressed. The page's own LISTEN handler decides whether to play,
-/// so a tap does nothing while the word is playing or the child is speaking.
+/// Turns a practice picture into a second LISTEN button, since children
+/// often tap the picture. The page's LISTEN handler decides whether to play.
 class TapToListen extends StatefulWidget {
   final Widget child;
   final VoidCallback onTap;
