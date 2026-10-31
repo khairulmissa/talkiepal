@@ -5,18 +5,16 @@ import 'package:talkiepal/services/question_service.dart';
 import 'package:talkiepal/services/speech_service.dart';
 import 'package:talkiepal/practice/practice_session.dart';
 import 'package:talkiepal/practice/result_page.dart';
+import 'package:talkiepal/practice/speak_check.dart';
 import 'package:talkiepal/practice/widgets/practice_scaffold.dart';
 import 'package:talkiepal/practice/widgets/success_dialog.dart';
 import 'package:talkiepal/widgets/kids_bottom_nav.dart';
 import 'package:talkiepal/progress_page.dart';
 
-/// Question-and-answer practice page for every Intermediate topic.
-/// The questions come from the AI backend instead of being written in the code.
 class AiQuestionPage extends StatefulWidget {
   final String topic;
   final int count;
 
-  /// Questions to practice instead of asking the AI (e.g. the hard ones again).
   final List<PracticeQuestion>? initialQuestions;
 
   const AiQuestionPage({
@@ -30,23 +28,17 @@ class AiQuestionPage extends StatefulWidget {
   State<AiQuestionPage> createState() => _AiQuestionPageState();
 }
 
-class _AiQuestionPageState extends State<AiQuestionPage> {
+class _AiQuestionPageState extends State<AiQuestionPage> with HoldToSpeak {
   bool isLoading = true;
   bool isPlaying = false;
   int currentIndex = 0;
   List<PracticeQuestion> questions = [];
 
-  // Right on the first try or not, for the results screen.
   PracticeSession session = PracticeSession(isQuiz: true);
 
-  // What is lit up during LISTEN (-1 = none).
   int highlightedWord = -1;
   int highlightedOption = -1;
 
-  // Answer the child tapped that was not correct (-1 = none).
-  int wrongOption = -1;
-
-  // Bumped whenever the question changes, so an old highlight run stops.
   int _highlightRun = 0;
 
   PracticeQuestion get currentQuestion => questions[currentIndex];
@@ -60,10 +52,10 @@ class _AiQuestionPageState extends State<AiQuestionPage> {
   }
 
   Future<void> _loadQuestions() async {
+    _stopHighlight();
     setState(() {
       isLoading = true;
       currentIndex = 0;
-      _stopHighlight();
     });
 
     final given = widget.initialQuestions;
@@ -93,23 +85,19 @@ class _AiQuestionPageState extends State<AiQuestionPage> {
     }
   }
 
-  // Call inside setState.
   void _stopHighlight() {
     SpeechService.instance.stop();
     _highlightRun++;
     highlightedWord = -1;
     highlightedOption = -1;
-    wrongOption = -1;
     isPlaying = false;
+    cancelSpeaking();
   }
 
-  /// Reads the question aloud word by word, then each answer.
-  /// Returns false if it was stopped because the question changed.
   Future<bool> _playHighlight() async {
     final run = ++_highlightRun;
     bool stillHere() => mounted && run == _highlightRun;
 
-    // The question, one word at a time, each lit as it is spoken.
     await speakWordByWord(
       currentQuestion.question,
       keepGoing: stillHere,
@@ -119,7 +107,6 @@ class _AiQuestionPageState extends State<AiQuestionPage> {
       }),
     );
 
-    // Then each answer: A..., B..., C...
     for (var i = 0; i < currentQuestion.options.length; i++) {
       if (!stillHere()) return false;
       setState(() {
@@ -127,7 +114,6 @@ class _AiQuestionPageState extends State<AiQuestionPage> {
         highlightedOption = i;
       });
       await SpeechService.instance.speak('${String.fromCharCode(65 + i)}. ${currentQuestion.options[i]}');
-      // A short pause between answers.
       if (stillHere()) await Future.delayed(const Duration(milliseconds: 500));
     }
 
@@ -146,7 +132,7 @@ class _AiQuestionPageState extends State<AiQuestionPage> {
   }
 
   Future<void> _onListen() async {
-    if (isPlaying) return;
+    if (isPlaying || isListening) return;
     setState(() {
       isPlaying = true;
     });
@@ -159,24 +145,30 @@ class _AiQuestionPageState extends State<AiQuestionPage> {
     });
   }
 
-  void _onOptionTap(int i) {
-    if (isPlaying) return;
-    SpeechService.instance.stop();
+  @override
+  void onSpeechChecked(SpeechCheck check) {
+    final heardText = check.heard.join(' ').toLowerCase().trim();
+    final correctAnswer = currentQuestion.options[currentQuestion.correctIndex].toLowerCase().trim();
 
-    final correct = i == currentQuestion.correctIndex;
-    session.recordAnswer(currentQuestion.question, correct: correct);
-    if (correct) {
-      setState(() {
-        wrongOption = -1;
-      });
+    final bool isCorrect = heardText.isNotEmpty &&
+        (check.score >= 60 ||
+            heardText.contains(correctAnswer) ||
+            correctAnswer.contains(heardText));
+
+    session.recordAnswer(currentQuestion.question, correct: isCorrect);
+
+    if (isCorrect) {
       _showResultDialog();
     } else {
-      setState(() {
-        wrongOption = i;
-      });
       _showTryAgainDialog();
     }
   }
+
+  @override
+  String get speakTarget => currentQuestion.options[currentQuestion.correctIndex];
+
+  @override
+  bool get speakBlocked => isPlaying;
 
   void _showTryAgainDialog() {
     showDialog(
@@ -210,7 +202,7 @@ class _AiQuestionPageState extends State<AiQuestionPage> {
                 ),
                 const SizedBox(height: 15),
                 const Text(
-                  'That is not the right answer. Listen again and try another one!',
+                  'That is not the right answer. Listen again and try speaking another one!',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 16, color: Colors.white),
                 ),
@@ -231,7 +223,6 @@ class _AiQuestionPageState extends State<AiQuestionPage> {
 
   void _finish() {
     final all = questions;
-    // Show the results; "practice again" asks just the hard questions.
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
@@ -249,11 +240,13 @@ class _AiQuestionPageState extends State<AiQuestionPage> {
   }
 
   void _goToNextQuestion() {
+    if (!mounted) return;
     if (currentIndex + 1 < questions.length) {
       setState(() {
         currentIndex++;
-        _stopHighlight();
       });
+      _stopHighlight();
+      setState(() {});
     } else {
       _finish();
     }
@@ -264,7 +257,7 @@ class _AiQuestionPageState extends State<AiQuestionPage> {
 
     showSuccessDialog(
       context,
-      detail: '"${currentQuestion.correctAnswer}"',
+      detail: '"${currentQuestion.options[currentQuestion.correctIndex]}"',
       nextLabel: isLastQuestion ? 'FINISH →' : 'NEXT →',
       onNext: _goToNextQuestion,
     );
@@ -301,7 +294,6 @@ class _AiQuestionPageState extends State<AiQuestionPage> {
 
   static const PracticeLook _look = PracticeLook.intermediate;
 
-  // Pastel colours for answers A, B and C: [background, bottom edge].
   static const List<List<Color>> _answerColors = [
     [Color(0xFFE3F2FD), Color(0xFF90CAF9)],
     [Color(0xFFE8F5E9), Color(0xFFA5D6A7)],
@@ -315,7 +307,7 @@ class _AiQuestionPageState extends State<AiQuestionPage> {
       title: widget.topic,
       current: isLoading ? 0 : currentIndex + 1,
       total: questions.length,
-      dinoTip: 'Listen to my question, then tap the right answer!',
+      dinoTip: 'Listen to my question, then hold SPEAK and say the full answer!',
       isLoading: isLoading,
       loadingText: 'Creating new questions for you... ✨',
       onRefresh: _loadQuestions,
@@ -328,12 +320,57 @@ class _AiQuestionPageState extends State<AiQuestionPage> {
               const Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  'Tap the right answer 👇',
+                  'Hold SPEAK and say the answer 👇',
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF6B4C7A)),
                 ),
               ),
               const SizedBox(height: 12),
-              for (var i = 0; i < currentQuestion.options.length; i++) _buildOption(i),
+              for (var i = 0; i < currentQuestion.options.length; i++) _buildOptionDisplay(i),
+              const SizedBox(height: 20),
+              
+              // BUTANG SPEAK SAHAJA (TEKAN DAN TAHAN)
+              Center(
+                child: GestureDetector(
+                  onTapDown: (_) => onSpeakDown(),
+                  onTapUp: (_) => onSpeakUp(),
+                  onTapCancel: () => onSpeakUp(),
+                  child: Container(
+                    width: 150,
+                    height: 60,
+                    decoration: BoxDecoration(
+                      color: isListening ? const Color(0xFF6BCB77) : const Color(0xFF4A90E2),
+                      borderRadius: BorderRadius.circular(30),
+                      boxShadow: [
+                        BoxShadow(
+                          color: (isListening ? const Color(0xFF6BCB77) : const Color(0xFF4A90E2)).withOpacity(0.4),
+                          offset: const Offset(0, 5),
+                          blurRadius: 10,
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          isListening ? Icons.mic : Icons.mic_none,
+                          color: Colors.white,
+                          size: 28,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          isListening ? '...' : 'SPEAK',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1.2,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
             ],
     );
   }
@@ -381,20 +418,17 @@ class _AiQuestionPageState extends State<AiQuestionPage> {
     );
   }
 
-  Widget _buildOption(int i) {
+  Widget _buildOptionDisplay(int i) {
     final isLit = highlightedOption == i;
-    final isWrong = !isLit && wrongOption == i;
     final colors = _answerColors[i % _answerColors.length];
 
-    const Color wrongColor = Color(0xFFFF6B6B);
     const Color litColor = Color(0xFFFFB300);
 
-    final Color background = isWrong ? const Color(0xFFFFEBEE) : colors[0];
-    final Color edge = isWrong ? const Color(0xFFFFB3B3) : (isLit ? litColor : colors[1]);
-    final Color border = isWrong ? wrongColor : (isLit ? litColor : Colors.white);
+    final Color background = colors[0];
+    final Color edge = isLit ? litColor : colors[1];
+    final Color border = isLit ? litColor : Colors.white;
 
-    return GestureDetector(
-      onTap: () => _onOptionTap(i),
+    return IgnorePointer(
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         width: double.infinity,
@@ -413,7 +447,7 @@ class _AiQuestionPageState extends State<AiQuestionPage> {
               height: 40,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: isWrong ? wrongColor : (isLit ? litColor : Colors.white),
+                color: isLit ? litColor : Colors.white,
                 shape: BoxShape.circle,
               ),
               child: Text(
@@ -421,7 +455,7 @@ class _AiQuestionPageState extends State<AiQuestionPage> {
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w900,
-                  color: isWrong || isLit ? Colors.white : _look.darkColor,
+                  color: isLit ? Colors.white : _look.darkColor,
                 ),
               ),
             ),
@@ -429,14 +463,13 @@ class _AiQuestionPageState extends State<AiQuestionPage> {
             Expanded(
               child: Text(
                 currentQuestion.options[i],
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w800,
-                  color: isWrong ? const Color(0xFFE53935) : PracticeColors.ink,
+                  color: PracticeColors.ink,
                 ),
               ),
             ),
-            if (isWrong) const Text('❌', style: TextStyle(fontSize: 18)),
           ],
         ),
       ),
