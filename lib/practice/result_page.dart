@@ -36,8 +36,27 @@ class _ResultPageState extends State<ResultPage> {
   @override
   void initState() {
     super.initState();
-    // Saved for the Progress pages.
-    ProgressStore.instance.save(SessionRecord.fromPractice(session, level: look.name, topic: title));
+    // Saved for the Progress pages; a round with no tries would only pull
+    // the child's average down.
+    if (session.totalTries > 0) {
+      ProgressStore.instance.save(SessionRecord.fromPractice(session, level: look.name, topic: title));
+    }
+  }
+
+  /// What the items are, so labels read "3 letters" or "1 sentence".
+  String _itemNoun(int count) {
+    final labels = session.items.map((i) => i.label);
+    final String noun;
+    if (session.isQuiz) {
+      noun = 'question';
+    } else if (labels.isNotEmpty && labels.every((l) => l.length == 1)) {
+      noun = 'letter';
+    } else if (labels.any((l) => l.trim().contains(' '))) {
+      noun = 'sentence';
+    } else {
+      noun = 'word';
+    }
+    return count == 1 ? noun : '${noun}s';
   }
 
   String get _cheer {
@@ -50,8 +69,9 @@ class _ResultPageState extends State<ResultPage> {
   }
 
   String get _time {
-    final minutes = session.duration.inMinutes;
-    return minutes < 1 ? '<1 min' : '$minutes min';
+    final time = session.duration;
+    if (time.inMinutes >= 1) return '${time.inMinutes} min';
+    return '${time.inSeconds} sec';
   }
 
   @override
@@ -92,7 +112,7 @@ class _ResultPageState extends State<ResultPage> {
               ResultStatBox(
                 emoji: '✅',
                 value: '${session.passedCount}/${items.length}',
-                label: session.isQuiz ? 'first try' : 'words passed',
+                label: session.isQuiz ? 'first try' : '${_itemNoun(items.length)} passed',
               ),
               const SizedBox(width: 8),
               ResultStatBox(emoji: session.isQuiz ? '👆' : '🎤', value: '${session.totalTries}', label: 'tries'),
@@ -109,9 +129,9 @@ class _ResultPageState extends State<ResultPage> {
               spacing: 10,
               alignment: WrapAlignment.center,
               children: [
-                _Legend(color: ScoreBand.greatColor, text: '85%+ great'),
-                _Legend(color: ScoreBand.almostColor, text: '70–84% almost'),
-                _Legend(color: ScoreBand.lowColor, text: 'below 70% practice'),
+                _Legend(color: ScoreBand.greatColor, text: '${ScoreBand.great}%+ great'),
+                _Legend(color: ScoreBand.almostColor, text: '${ScoreBand.pass}–${ScoreBand.great - 1}% almost'),
+                _Legend(color: ScoreBand.lowColor, text: 'below ${ScoreBand.pass}% practice'),
               ],
             ),
           const SizedBox(height: 8),
@@ -129,7 +149,12 @@ class _ResultPageState extends State<ResultPage> {
                       text: '🎯 Practice again: ',
                       style: TextStyle(color: ScoreBand.lowColor),
                     ),
-                    TextSpan(text: hard.map((i) => i.label).join(', ')),
+                    // Questions are long; the rows above already list them.
+                    TextSpan(
+                      text: session.isQuiz
+                          ? '${hard.length} ${_itemNoun(hard.length)}'
+                          : hard.map((i) => i.label).join(', '),
+                    ),
                   ],
                 ),
                 style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: PracticeColors.ink),
@@ -141,7 +166,7 @@ class _ResultPageState extends State<ResultPage> {
             ResultButton(
               label: hard.length == 1
                   ? '🔁 PRACTICE THE HARD ONE'
-                  : '🔁 PRACTICE ${hard.length} HARD ${session.isQuiz ? 'QUESTIONS' : 'WORDS'}',
+                  : '🔁 PRACTICE ${hard.length} HARD ${_itemNoun(hard.length).toUpperCase()}',
               filled: true,
               onTap: () => Navigator.pushReplacement(
                 context,
@@ -177,7 +202,7 @@ class _ResultRow extends StatelessWidget {
       pill = 'skipped';
       pillColor = const Color(0xFFBDBDBD);
     } else if (isQuiz) {
-      pill = score == 100 ? '1st try' : '${item.tries} tries';
+      pill = score == 100 ? '1st try' : (item.tries == 1 ? '1 try' : '${item.tries} tries');
       pillColor = score == 100 ? ScoreBand.greatColor : ScoreBand.almostColor;
     } else {
       pill = '$score%';
