@@ -67,7 +67,13 @@ class _AiSoundPageState extends State<AiSoundPage> with HoldToSpeak {
   // Bumped whenever the item changes, so an old highlight run stops.
   int _highlightRun = 0;
 
+  // Bumped on every load, so a slow AI answer cannot replace newer words.
+  int _loadRun = 0;
+
   PracticeExercise get currentExercise => exercises[currentIndex];
+
+  /// True once the child has spoken at least one item in this round.
+  bool get _hasProgress => session.items.any((item) => item.tries > 0);
 
   String get _apiLevel => widget.isSentence ? 'special_sentences' : 'special_words';
 
@@ -101,6 +107,7 @@ class _AiSoundPageState extends State<AiSoundPage> with HoldToSpeak {
   }
 
   Future<void> _loadExercises() async {
+    final run = ++_loadRun;
     setState(() {
       isLoading = true;
       currentIndex = 0;
@@ -112,11 +119,13 @@ class _AiSoundPageState extends State<AiSoundPage> with HoldToSpeak {
         ? ExerciseResult(exercises: given, isOffline: false)
         : await ExerciseService.getExercises(level: _apiLevel, topic: widget.sound, count: widget.count);
 
-    if (!mounted) return;
+    if (!mounted || run != _loadRun) return;
 
     setState(() {
       // Words like "THE" or "A" have no picture and sound wrong said alone.
-      exercises = result.exercises.where((e) => !_notPracticeWords.contains(e.word)).toList();
+      exercises = result.exercises
+          .where((e) => !_notPracticeWords.contains(e.word.trim().toUpperCase()))
+          .toList();
       session = PracticeSession();
       for (final e in exercises) {
         session.addItem(e.word, emoji: e.emoji);
@@ -124,7 +133,7 @@ class _AiSoundPageState extends State<AiSoundPage> with HoldToSpeak {
       isLoading = false;
     });
 
-    if (result.isOffline) {
+    if (result.isOffline && exercises.isNotEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('📴 AI is offline. Using practice words instead.'),
@@ -133,6 +142,32 @@ class _AiSoundPageState extends State<AiSoundPage> with HoldToSpeak {
         ),
       );
     }
+  }
+
+  /// New words wipe this round's scores, so ask first once the child has started.
+  Future<void> _onRefresh() async {
+    if (_hasProgress) {
+      final sure = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: Text(widget.isSentence ? 'Get new sentences? 🔄' : 'Get new words? 🔄'),
+          content: const Text('Your stars for this round will be lost.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('KEEP GOING'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('GET NEW'),
+            ),
+          ],
+        ),
+      );
+      if (sure != true || !mounted) return;
+    }
+    await _loadExercises();
   }
 
   // Call inside setState.
@@ -146,7 +181,7 @@ class _AiSoundPageState extends State<AiSoundPage> with HoldToSpeak {
   }
 
   Future<void> _onListen() async {
-    if (isPlaying || isListening) return;
+    if (isPlaying || isListening || exercises.isEmpty) return;
     final run = ++_highlightRun;
     setState(() {
       isPlaying = true;
@@ -203,6 +238,29 @@ class _AiSoundPageState extends State<AiSoundPage> with HoldToSpeak {
     await Future.delayed(const Duration(milliseconds: 300));
     if (!stillHere()) return;
     await SpeechService.instance.speak(word, slow: true);
+  }
+
+  /// Before another try: just the whole word, slowly, with every box lit.
+  /// Spelling it all again would make the child wait too long; a sentence is
+  /// already said slowly word by word, so it is played as LISTEN plays it.
+  Future<void> _sayAgain() async {
+    if (widget.isSentence) return _onListen();
+    if (isPlaying || isListening || exercises.isEmpty) return;
+
+    final run = ++_highlightRun;
+    setState(() {
+      isPlaying = true;
+      isWholeWordLit = true;
+      highlightColor = PracticeColors.listen;
+    });
+
+    await SpeechService.instance.speak(toSpoken(currentExercise.word), slow: true);
+
+    if (!mounted || run != _highlightRun) return;
+    setState(() {
+      isWholeWordLit = false;
+      isPlaying = false;
+    });
   }
 
   @override
@@ -264,6 +322,7 @@ class _AiSoundPageState extends State<AiSoundPage> with HoldToSpeak {
       heard: check.heard,
       nextLabel: isLast ? 'FINISH →' : 'NEXT →',
       onNext: _goToNext,
+      onTryAgain: _sayAgain,
     );
   }
 
@@ -281,10 +340,12 @@ class _AiSoundPageState extends State<AiSoundPage> with HoldToSpeak {
       loadingText: widget.isSentence
           ? 'Creating new sentences for you... ✨'
           : 'Creating new words for you... ✨',
-      onRefresh: _loadExercises,
+      onRefresh: _onRefresh,
       onNavTap: _onNavTap,
-      children: isLoading || exercises.isEmpty
+      children: isLoading
           ? const []
+          : exercises.isEmpty
+          ? [_buildNoWordsCard()]
           : [
               _buildPracticeCard(),
               const SizedBox(height: 22),
@@ -340,6 +401,44 @@ class _AiSoundPageState extends State<AiSoundPage> with HoldToSpeak {
     );
   }
 
+  /// Shown when neither the AI nor the backup list had anything for this sound.
+  Widget _buildNoWordsCard() {
+    return PracticeCard(
+      look: _look,
+      child: Column(
+        children: [
+          const Text('🦖💤', style: TextStyle(fontSize: 56)),
+          const SizedBox(height: 12),
+          Text(
+            widget.isSentence
+                ? 'Dino could not find any "${widget.sound}" sentences'
+                : 'Dino could not find any "${widget.sound}" words',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: _look.darkColor),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Check the internet, then try again.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF7A6A85)),
+          ),
+          const SizedBox(height: 18),
+          ElevatedButton.icon(
+            onPressed: _loadExercises,
+            icon: const Icon(Icons.refresh_rounded),
+            label: const Text('TRY AGAIN', style: TextStyle(fontWeight: FontWeight.w900)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _look.color,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// One letter box. The target sound box is yellow.
   Widget _buildLetterBox(String text, bool isLit, int boxCount) {
     final isTarget = text == widget.sound;
@@ -377,25 +476,16 @@ class _AiSoundPageState extends State<AiSoundPage> with HoldToSpeak {
     switch (tab) {
       case KidsTab.home:
         goToKidsHome(context);
-        break;
       case KidsTab.game:
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const GamePage()),
-        );
-        break;
+        _openTab(const GamePage());
       case KidsTab.progress:
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const ProgressPage()),
-        );
-        break;
+        _openTab(const ProgressPage());
       case KidsTab.profile:
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const ProfilePage()),
-        );
-        break;
+        _openTab(const ProfilePage());
     }
+  }
+
+  void _openTab(Widget page) {
+    Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => page));
   }
 }
