@@ -25,6 +25,10 @@ mixin HoldToSpeak<T extends StatefulWidget> on State<T> {
 
   bool _isHolding = false;
   bool _heldLongEnough = false;
+
+  // True once the microphone really recorded during this hold. Letting go
+  // before that is not a try: the phone could not have heard anything.
+  bool _micWasReady = false;
   Timer? _shortHold;
   Timer? _maxHold;
 
@@ -47,6 +51,7 @@ mixin HoldToSpeak<T extends StatefulWidget> on State<T> {
     if (speakBlocked || isListening) return;
     _isHolding = true;
     _heldLongEnough = false;
+    _micWasReady = false;
     _shortHold?.cancel();
     _shortHold = Timer(_shortestHold, () => _heldLongEnough = true);
 
@@ -56,6 +61,7 @@ mixin HoldToSpeak<T extends StatefulWidget> on State<T> {
     final hearing = HearingService.instance;
     if (!await hearing.isAvailable()) {
       _isHolding = false;
+      _shortHold?.cancel();
       _showTip('🎤 Please allow the microphone for TalkiePal so Dino can hear you.');
       return;
     }
@@ -67,7 +73,7 @@ mixin HoldToSpeak<T extends StatefulWidget> on State<T> {
       isMicReady = false;
     });
     _maxHold?.cancel();
-    _maxHold = Timer(_longestHold, onSpeakUp);
+    _maxHold = Timer(_longestHold, _onTimeUp);
 
     final target = speakTarget.trim();
     await hearing.start(
@@ -79,6 +85,7 @@ mixin HoldToSpeak<T extends StatefulWidget> on State<T> {
         if (!mounted) return;
         final ready = recording && _isHolding;
         if (ready && !isMicReady) HapticFeedback.mediumImpact();
+        if (ready) _micWasReady = true;
         setState(() {
           isMicReady = ready;
         });
@@ -86,8 +93,14 @@ mixin HoldToSpeak<T extends StatefulWidget> on State<T> {
     );
   }
 
+  /// Listening stopped on its own; a buzz tells the child to let go.
+  void _onTimeUp() {
+    HapticFeedback.lightImpact();
+    onSpeakUp();
+  }
+
   Future<void> onSpeakUp() async {
-    if (!_isHolding) return;
+    if (!_isHolding || !mounted) return;
     _isHolding = false;
     _maxHold?.cancel();
     _shortHold?.cancel();
@@ -99,13 +112,17 @@ mixin HoldToSpeak<T extends StatefulWidget> on State<T> {
       isMicReady = false;
     });
 
-    if (!_heldLongEnough) {
+    // A tap, or let go before the button turned red: not a real try, so
+    // nothing is scored and the child's results stay fair.
+    if (!_heldLongEnough || !_micWasReady) {
       await hearing.stop();
       if (!mounted) return;
       setState(() {
         isListening = false;
       });
-      _showTip('👆 Hold the SPEAK button while you talk, then let go.');
+      _showTip(_heldLongEnough
+          ? '🔴 Wait for the red button, then talk.'
+          : '👆 Hold the SPEAK button while you talk, then let go.');
       return;
     }
 
@@ -121,6 +138,7 @@ mixin HoldToSpeak<T extends StatefulWidget> on State<T> {
   /// Call inside setState.
   void cancelSpeaking() {
     _isHolding = false;
+    _micWasReady = false;
     _maxHold?.cancel();
     _shortHold?.cancel();
     isListening = false;
