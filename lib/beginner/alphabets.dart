@@ -24,64 +24,21 @@ class _PracticeAlphabetsPageState extends State<PracticeAlphabetsPage> with Hold
   bool isPlaying = false;
   int currentIndex = 0;
 
-  // List of 26 exercises (A to Z)
-  final List<Map<String, String>> _allExercises = [
-    {'letter': 'A', 'focus': 'Alphabets', 'image': 'lib/assets/images/alphabets/A.png'},
-    {'letter': 'B', 'focus': 'Alphabets', 'image': 'lib/assets/images/alphabets/B.png'},
-    {'letter': 'C', 'focus': 'Alphabets', 'image': 'lib/assets/images/alphabets/C.png'},
-    {'letter': 'D', 'focus': 'Alphabets', 'image': 'lib/assets/images/alphabets/D.png'},
-    {'letter': 'E', 'focus': 'Alphabets', 'image': 'lib/assets/images/alphabets/E.png'},
-    {'letter': 'F', 'focus': 'Alphabets', 'image': 'lib/assets/images/alphabets/F.png'},
-    {'letter': 'G', 'focus': 'Alphabets', 'image': 'lib/assets/images/alphabets/G.png'},
-    {'letter': 'H', 'focus': 'Alphabets', 'image': 'lib/assets/images/alphabets/H.png'},
-    {'letter': 'I', 'focus': 'Alphabets', 'image': 'lib/assets/images/alphabets/I.png'},
-    {'letter': 'J', 'focus': 'Alphabets', 'image': 'lib/assets/images/alphabets/J.png'},
-    {'letter': 'K', 'focus': 'Alphabets', 'image': 'lib/assets/images/alphabets/K.png'},
-    {'letter': 'L', 'focus': 'Alphabets', 'image': 'lib/assets/images/alphabets/L.png'},
-    {'letter': 'M', 'focus': 'Alphabets', 'image': 'lib/assets/images/alphabets/M.png'},
-    {'letter': 'N', 'focus': 'Alphabets', 'image': 'lib/assets/images/alphabets/N.png'},
-    {'letter': 'O', 'focus': 'Alphabets', 'image': 'lib/assets/images/alphabets/O.png'},
-    {'letter': 'P', 'focus': 'Alphabets', 'image': 'lib/assets/images/alphabets/P.png'},
-    {'letter': 'Q', 'focus': 'Alphabets', 'image': 'lib/assets/images/alphabets/Q.png'},
-    {'letter': 'R', 'focus': 'Alphabets', 'image': 'lib/assets/images/alphabets/R.png'},
-    {'letter': 'S', 'focus': 'Alphabets', 'image': 'lib/assets/images/alphabets/S.png'},
-    {'letter': 'T', 'focus': 'Alphabets', 'image': 'lib/assets/images/alphabets/T.png'},
-    {'letter': 'U', 'focus': 'Alphabets', 'image': 'lib/assets/images/alphabets/U.png'},
-    {'letter': 'V', 'focus': 'Alphabets', 'image': 'lib/assets/images/alphabets/V.png'},
-    {'letter': 'W', 'focus': 'Alphabets', 'image': 'lib/assets/images/alphabets/W.png'},
-    {'letter': 'X', 'focus': 'Alphabets', 'image': 'lib/assets/images/alphabets/X.png'},
-    {'letter': 'Y', 'focus': 'Alphabets', 'image': 'lib/assets/images/alphabets/Y.png'},
-    {'letter': 'Z', 'focus': 'Alphabets', 'image': 'lib/assets/images/alphabets/Z.png'},
-  ];
+  // Generated automatically for A to Z to avoid manual repetition.
+  final List<Map<String, String>> _allExercises = List.generate(26, (index) {
+    final letter = String.fromCharCode(65 + index); // 'A' is 65 in ASCII
+    return {
+      'letter': letter,
+      'focus': 'Alphabets',
+      'image': 'lib/assets/images/alphabets/$letter.png',
+    };
+  });
 
   // How each letter name sounds, A to Z.
   static const List<String> _letterNames = [
-    'ay',
-    'bee',
-    'see',
-    'dee',
-    'ee',
-    'ef',
-    'jee',
-    'aych',
-    'eye',
-    'jay',
-    'kay',
-    'el',
-    'em',
-    'en',
-    'oh',
-    'pee',
-    'cue',
-    'ar',
-    'es',
-    'tee',
-    'you',
-    'vee',
-    'double-you',
-    'ex',
-    'why',
-    'zee',
+    'ay', 'bee', 'see', 'dee', 'ee', 'ef', 'jee', 'aych', 'eye', 'jay',
+    'kay', 'el', 'em', 'en', 'oh', 'pee', 'cue', 'ar', 'es', 'tee',
+    'you', 'vee', 'double-you', 'ex', 'why', 'zee',
   ];
 
   late final List<Map<String, String>> exercises = widget.only == null
@@ -147,12 +104,18 @@ class _PracticeAlphabetsPageState extends State<PracticeAlphabetsPage> with Hold
       isPlaying = true;
     });
 
-    // The word stays lit while the voice says it.
-    await SpeechService.instance.speak(currentExercise['letter']!);
-    if (!mounted) return;
-    setState(() {
-      isPlaying = false;
-    });
+    try {
+      // The word stays lit while the voice says it.
+      await SpeechService.instance.speak(currentExercise['letter']!);
+    } catch (e) {
+      debugPrint("Error playing audio: $e");
+    } finally {
+      if (mounted) {
+        setState(() {
+          isPlaying = false;
+        });
+      }
+    }
   }
 
   @override
@@ -171,6 +134,16 @@ class _PracticeAlphabetsPageState extends State<PracticeAlphabetsPage> with Hold
   void onSpeechChecked(SpeechCheck check) {
     session.recordScore(currentExercise['letter']!, check.score, heard: check.heard);
     _showResultDialog(check);
+  }
+
+  /// Helper to safely retrieve the phonetic name of the current letter.
+  String get _currentLetterName {
+    final letter = currentExercise['letter']!;
+    final index = letter.codeUnitAt(0) - 65; // 'A' = 65
+    if (index >= 0 && index < _letterNames.length) {
+      return _letterNames[index];
+    }
+    return letter; // Fallback if not found
   }
 
   @override
@@ -211,7 +184,7 @@ class _PracticeAlphabetsPageState extends State<PracticeAlphabetsPage> with Hold
               ),
               const SizedBox(height: 6),
               Text(
-                'say "${_letterNames[currentExercise['letter']!.codeUnitAt(0) - 65]}"',
+                'say "$_currentLetterName"',
                 style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: PracticeColors.soft),
               ),
             ],
