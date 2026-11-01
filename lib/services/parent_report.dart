@@ -8,7 +8,7 @@ import 'package:talkiepal/pre intermediate/pre_intermediate_page.dart';
 import 'package:talkiepal/services/progress_store.dart';
 import 'package:talkiepal/special_sound/specialsound_page.dart';
 
-/// One practice topic or game with its average score, e.g. in the summary.
+/// A practice topic or game with its average score.
 class ScoreLine {
   /// Picture or short text at the start, e.g. "🐾" or "TH".
   final String lead;
@@ -164,8 +164,8 @@ class DetailReport {
   });
 }
 
-/// Everything on the parent's Progress page, worked out from one child's
-/// saved sessions (newest first).
+/// Derives everything on the parent's Progress page from one child's
+/// sessions (newest first).
 class ParentReport {
   final List<SessionRecord> sessions;
   final DateTime now;
@@ -175,8 +175,10 @@ class ParentReport {
   /// The summary looks at the last two weeks.
   static const Duration summaryPeriod = Duration(days: 14);
 
-  /// A change counts when the score moved at least this much.
+  /// Minimum score movement that counts as a change.
   static const int bigChange = 10;
+
+  static const int _chartWeeks = 6;
 
   static final List<(PracticeLook, Map<String, String>)> levels = [
     (PracticeLook.beginner, BeginnerPage.topicEmojis),
@@ -196,7 +198,7 @@ class ParentReport {
 
   static const String _balloon = 'Pop the Balloon';
 
-  // Voice Rocket is about a long, loud voice, not right or wrong answers.
+  // Voice Rocket measures voice length/volume, not correctness.
   static const String _rocket = 'Voice Rocket';
 
   DateTime get _today => DateTime(now.year, now.month, now.day);
@@ -209,10 +211,7 @@ class ParentReport {
 
   static bool _isSpeaking(SessionRecord s) => !s.isGame && !s.isQuiz;
 
-  // ---------------- Summary ----------------
-
-  /// Practice topics and games (each Pop the Balloon sound on its own),
-  /// with their scores in [list].
+  /// Groups [list] by topic or game; each Pop the Balloon sound is its own group.
   List<_Group> _groups(List<SessionRecord> list) {
     final groups = <String, _Group>{};
     for (final s in list) {
@@ -289,8 +288,6 @@ class ParentReport {
     return list.take(3).toList();
   }
 
-  // ---------------- Week ----------------
-
   WeekTotals _week(DateTime monday) {
     final end = monday.add(const Duration(days: 7));
     final list = sessions.where((s) => !s.finishedAt.isBefore(monday) && s.finishedAt.isBefore(end)).toList();
@@ -318,16 +315,12 @@ class ParentReport {
     );
   }
 
-  /// Average speaking score for each of the last 6 weeks, oldest first.
+  /// Average speaking score for each of the last [_chartWeeks] weeks, oldest first.
   List<WeekScore> get weeks => [
-    for (var i = 5; i >= 0; i--)
-      () {
-        final monday = thisMonday.subtract(Duration(days: 7 * i));
-        return WeekScore(monday, _week(monday).speaking);
-      }(),
+    for (var i = _chartWeeks - 1; i >= 0; i--) _weekScore(thisMonday.subtract(Duration(days: 7 * i))),
   ];
 
-  // ---------------- Levels and games ----------------
+  WeekScore _weekScore(DateTime monday) => WeekScore(monday, _week(monday).speaking);
 
   /// Sessions of the last 4 weeks, or all of them when there are none.
   static List<SessionRecord> _recentOrAll(List<SessionRecord> list, DateTime now) {
@@ -335,40 +328,37 @@ class ParentReport {
     return recent.isEmpty ? list : recent;
   }
 
-  List<LevelScore> get levelScores => [
-    for (final (look, emojis) in levels)
-      () {
-        final list = sessions.where((s) => !s.isGame && s.level == look.name).toList();
-        return LevelScore(
-          look,
-          average(_recentOrAll(list, now).map((s) => s.score)),
-          emojis.keys.where((t) => list.any((s) => s.topic == t)).length,
-          emojis.length,
-          list.length,
-        );
-      }(),
-  ];
+  List<LevelScore> get levelScores => [for (final (look, emojis) in levels) _levelScore(look, emojis)];
 
-  List<GameScore> get gameScores => [
-    for (final (emoji, name) in games)
-      () {
-        final list = sessions.where((s) => s.isGame && s.topic == name).toList();
-        if (list.isEmpty) return GameScore(emoji, name, null, 'not played yet');
-        final what = switch (name) {
-          _balloon => 'right pops',
-          _rocket => 'stars collected',
-          _ => 'right on the 1st try',
-        };
-        return GameScore(
-          emoji,
-          name,
-          average(_recentOrAll(list, now).map((s) => s.score)),
-          '$what · ${_count(list.length, 'game')}',
-        );
-      }(),
-  ];
+  LevelScore _levelScore(PracticeLook look, Map<String, String> emojis) {
+    final list = sessions.where((s) => !s.isGame && s.level == look.name).toList();
+    return LevelScore(
+      look,
+      average(_recentOrAll(list, now).map((s) => s.score)),
+      emojis.keys.where((t) => list.any((s) => s.topic == t)).length,
+      emojis.length,
+      list.length,
+    );
+  }
 
-  // ---------------- Words and sounds ----------------
+  List<GameScore> get gameScores => [for (final (emoji, name) in games) _gameScore(emoji, name)];
+
+  GameScore _gameScore(String emoji, String name) {
+    final list = sessions.where((s) => s.isGame && s.topic == name).toList();
+    if (list.isEmpty) return GameScore(emoji, name, null, 'not played yet');
+
+    final what = switch (name) {
+      _balloon => 'right pops',
+      _rocket => 'stars collected',
+      _ => 'right on the 1st try',
+    };
+    return GameScore(
+      emoji,
+      name,
+      average(_recentOrAll(list, now).map((s) => s.score)),
+      '$what · ${_count(list.length, 'game')}',
+    );
+  }
 
   /// Words with the lowest best score in [list], below 85%.
   static List<WordScore> hardestWords(List<SessionRecord> list, int count) {
@@ -425,8 +415,6 @@ class ParentReport {
     );
   }
 
-  // ---------------- Details ----------------
-
   /// All sessions of a level (e.g. "Special Sound") or a game.
   DetailReport detail({required String level, String? topic}) {
     final list = sessions
@@ -444,25 +432,7 @@ class ParentReport {
       for (final s in list) {
         groups.putIfAbsent(s.topic, () => _Group(_leadFor(s), s.topic, level, s.topic)).add(s, s.score);
       }
-      parts = [
-        for (final g in groups.values)
-          () {
-            final hard = hardestWords(g.sessions, 2);
-            final tries = g.sessions.fold(0, (sum, s) => sum + s.tries);
-            return ScoreLine(
-              lead: g.lead,
-              label: g.topic,
-              sub: [
-                _count(g.sessions.length, 'session'),
-                _count(tries, 'try', 'tries'),
-                if (hard.isNotEmpty) 'hardest: ${hard.map((w) => '${w.word} ${w.score}%').join(', ')}',
-              ].join(' · '),
-              score: g.average,
-              level: level,
-              topic: g.topic,
-            );
-          }(),
-      ]..sort((a, b) => b.score.compareTo(a.score));
+      parts = [for (final g in groups.values) _topicLine(g, level)]..sort((a, b) => b.score.compareTo(a.score));
     } else if (topic == _balloon) {
       parts = [
         for (final g in _groups(list))
@@ -486,6 +456,23 @@ class ParentReport {
       change: change,
       trend: oldestFirst.skip(max(0, oldestFirst.length - 7)).toList(),
       parts: parts,
+    );
+  }
+
+  static ScoreLine _topicLine(_Group g, String level) {
+    final hard = hardestWords(g.sessions, 2);
+    final tries = g.sessions.fold(0, (sum, s) => sum + s.tries);
+    return ScoreLine(
+      lead: g.lead,
+      label: g.topic,
+      sub: [
+        _count(g.sessions.length, 'session'),
+        _count(tries, 'try', 'tries'),
+        if (hard.isNotEmpty) 'hardest: ${hard.map((w) => '${w.word} ${w.score}%').join(', ')}',
+      ].join(' · '),
+      score: g.average,
+      level: level,
+      topic: g.topic,
     );
   }
 
