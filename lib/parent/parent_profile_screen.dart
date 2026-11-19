@@ -99,66 +99,101 @@ class _ParentProfileScreenState extends State<ParentProfileScreen> {
   void _showChildren() {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       builder: (sheetContext) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const _SheetHandle(),
-              Text(
-                'My children (${children.length} of 5)',
-                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: ParentColors.ink),
-              ),
-              const SizedBox(height: 12),
-              if (children.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.only(bottom: 12),
-                  child: Text('No children added yet.', style: TextStyle(color: ParentColors.soft)),
-                ),
-              for (final child in children)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: _SupabaseChildAvatar(child: child, radius: 20),
-                  title: Text(
-                    child.name,
-                    style: const TextStyle(fontWeight: FontWeight.w800, color: ParentColors.ink),
+        top: false,
+        child: SizedBox(
+          height: MediaQuery.sizeOf(sheetContext).height * 0.70,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const _SheetHandle(),
+                Text(
+                  'My children (${children.length} of 5) · Scroll',
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    color: ParentColors.ink,
                   ),
-                  subtitle: Text(
-                    [
-                      if (child.age != null) '${child.age} years',
-                      child.targetSound == null ? 'No target sound' : 'Target /${child.targetSound}/',
-                    ].join(' · '),
-                  ),
-                  trailing: const Icon(Icons.chevron_right_rounded, color: ParentColors.purple),
-                  onTap: () async {
-                    Navigator.pop(sheetContext);
-                    await _open(ChildProfileDetailsScreen(childId: child.id));
-                  },
                 ),
-              const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: ParentColors.purple,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  ),
-                  onPressed: children.length >= 5
-                      ? null
-                      : () {
-                          Navigator.pop(sheetContext);
-                          _open(const AddChildProfileScreen());
-                        },
-                  icon: const Icon(Icons.add_rounded),
-                  label: Text(children.length >= 5 ? 'Maximum 5 children' : 'Add a child'),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: children.isEmpty
+                      ? const Align(
+                          alignment: Alignment.topLeft,
+                          child: Padding(
+                            padding: EdgeInsets.only(bottom: 12),
+                            child: Text(
+                              'No children added yet.',
+                              style: TextStyle(color: ParentColors.soft),
+                            ),
+                          ),
+                        )
+                      : ListView.builder(
+                          itemCount: children.length,
+                          itemBuilder: (context, index) {
+                            final child = children[index];
+                            return ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: _SupabaseChildAvatar(child: child, radius: 20),
+                              title: Text(
+                                child.name,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  color: ParentColors.ink,
+                                ),
+                              ),
+                              subtitle: Text(
+                                [
+                                  if (child.age != null) '${child.age} years',
+                                  child.targetSound == null
+                                      ? 'No target sound'
+                                      : 'Target /${child.targetSound}/',
+                                ].join(' · '),
+                              ),
+                              trailing: const Icon(
+                                Icons.chevron_right_rounded,
+                                color: ParentColors.purple,
+                              ),
+                              onTap: () async {
+                                Navigator.pop(sheetContext);
+                                await _open(ChildProfileDetailsScreen(childId: child.id));
+                              },
+                            );
+                          },
+                        ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: ParentColors.purple,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    onPressed: children.length >= 5
+                        ? null
+                        : () {
+                            Navigator.pop(sheetContext);
+                            _open(const AddChildProfileScreen());
+                          },
+                    icon: const Icon(Icons.add_rounded),
+                    label: Text(children.length >= 5
+                        ? 'Maximum 5 children'
+                        : 'Add a child'),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

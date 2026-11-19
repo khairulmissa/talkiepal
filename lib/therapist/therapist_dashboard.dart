@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -8,6 +11,83 @@ import 'therapist_patients_screen.dart';
 import 'therapist_profile_screen.dart';
 import 'therapist_schedule_screen.dart';
 import 'therapist_ui.dart';
+
+const String kTherapistDashboardApiBaseUrl = 'http://192.168.0.139:8000';
+
+class _DashboardChildPhoto extends StatefulWidget {
+  final String parentId;
+  final String childId;
+  const _DashboardChildPhoto({required this.parentId, required this.childId});
+
+  @override
+  State<_DashboardChildPhoto> createState() => _DashboardChildPhotoState();
+}
+
+class _DashboardChildPhotoState extends State<_DashboardChildPhoto> {
+  late Future<String?> _url;
+
+  @override
+  void initState() {
+    super.initState();
+    _url = _load();
+  }
+
+  @override
+  void didUpdateWidget(covariant _DashboardChildPhoto oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.parentId != widget.parentId || oldWidget.childId != widget.childId) {
+      _url = _load();
+    }
+  }
+
+  Future<String?> _load() async {
+    if (widget.parentId.isEmpty || widget.childId.isEmpty) return null;
+    final token = await FirebaseAuth.instance.currentUser?.getIdToken();
+    if (token == null) return null;
+    final client = HttpClient();
+    try {
+      final uri = Uri.parse('$kTherapistDashboardApiBaseUrl/therapist/parents/'
+          '${Uri.encodeComponent(widget.parentId)}/children/'
+          '${Uri.encodeComponent(widget.childId)}/photo');
+      final request = await client.getUrl(uri);
+      request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
+      final response = await request.close();
+      final body = await utf8.decoder.bind(response).join();
+      if (response.statusCode != 200) {
+        debugPrint('Dashboard child photo HTTP ${response.statusCode}: $body');
+        return null;
+      }
+      final data = jsonDecode(body);
+      final url = data is Map ? data['url'] : null;
+      return url is String && url.startsWith('https://') ? url : null;
+    } catch (error) {
+      debugPrint('Dashboard child photo error: $error');
+      return null;
+    } finally {
+      client.close();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<String?>(
+      future: _url,
+      builder: (context, snapshot) => CircleAvatar(
+        radius: 22,
+        backgroundColor: const Color(0xFFFFF1C9),
+        backgroundImage: snapshot.data != null ? NetworkImage(snapshot.data!) : null,
+        onBackgroundImageError: snapshot.data != null
+            ? (error, stack) => debugPrint('Dashboard child image error: $error')
+            : null,
+        child: snapshot.data == null
+            ? const Icon(Icons.child_care_rounded, color: TherapistColors.purple)
+            : null,
+      ),
+    );
+  }
+}
+
+
 
 /// Therapist dashboard backed by the collections currently used in TalkiePal:
 /// chats (therapistId) and appointments (therapistId).
@@ -33,10 +113,57 @@ class TherapistDashboard extends StatelessWidget {
           return const Scaffold(body: Center(child: CircularProgressIndicator()));
         }
         final account = accountSnapshot.data!.data();
-        if (account?['role'] != 'therapist' ||
-            account?['isActive'] != true ||
-            (account?['verificationStatus'] ?? '').toString().trim().toLowerCase() != 'verified') {
-          return _notice('Therapist account is awaiting approval.');
+        final role = (account?['role'] ?? '').toString().trim().toLowerCase();
+        final status = (account?['verificationStatus'] ?? 'pending')
+            .toString().trim().toLowerCase();
+        final isActive = account?['isActive'] == true;
+        final accountStatus = (account?['accountStatus'] ?? 'active')
+            .toString().trim().toLowerCase();
+
+        if (role != 'therapist') {
+          return _notice('This account is not registered as a therapist.');
+        }
+        if (!isActive || accountStatus == 'suspended') {
+          return _notice('Therapist account is inactive or suspended.');
+        }
+        if (status != 'pending' && status != 'verified') {
+          return _notice('Therapist account status is unavailable.');
+        }
+        if (status == 'pending') {
+          return Scaffold(
+            backgroundColor: TherapistColors.background,
+            appBar: AppBar(
+              title: const Text('Therapist Verification'),
+              backgroundColor: TherapistColors.background,
+            ),
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.verified_user_outlined,
+                        size: 58, color: TherapistColors.purple),
+                    const SizedBox(height: 16),
+                    const Text('Your account is awaiting approval',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 10),
+                    const Text(
+                      'You can complete your professional profile and upload your certificate while Admin reviews your account.',
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 20),
+                    FilledButton.icon(
+                      onPressed: () => _open(context, const TherapistProfileScreen()),
+                      icon: const Icon(Icons.edit_outlined),
+                      label: const Text('View / Edit Profile'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
         }
         return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
           stream: db.collection('therapists').doc(uid).snapshots(),
@@ -289,9 +416,9 @@ class TherapistDashboard extends StatelessWidget {
                   final date = (d['startAt'] as Timestamp).toDate().toLocal();
                   return ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: const CircleAvatar(
-                      backgroundColor: Color(0xFFF3E9FB),
-                      child: Icon(Icons.calendar_today_rounded, color: TherapistColors.purple),
+                    leading: _DashboardChildPhoto(
+                      parentId: (d['parentId'] ?? d['parentUid'] ?? '').toString(),
+                      childId: (d['childId'] ?? '').toString(),
                     ),
                     title: Text((d['childName'] ?? 'Therapy Session').toString(),
                         style: const TextStyle(fontWeight: FontWeight.w700)),
@@ -336,9 +463,9 @@ class TherapistDashboard extends StatelessWidget {
                   child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     child: Row(children: [
-                      const CircleAvatar(
-                        backgroundColor: Color(0xFFFFF1C9),
-                        child: Icon(Icons.child_care_rounded, color: TherapistColors.purple),
+                      _DashboardChildPhoto(
+                        parentId: (d['parentId'] ?? '').toString(),
+                        childId: (d['childId'] ?? '').toString(),
                       ),
                       const SizedBox(width: 12),
                       Expanded(child: Column(
