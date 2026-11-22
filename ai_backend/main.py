@@ -274,60 +274,115 @@ def chat(request: ChatRequest):
 
 
 
-# ---------------------------------------------------------------
-# FIREBASE -> SUPABASE: authenticated role for parent and therapist storage
-# ---------------------------------------------------------------
-@app.post("/auth/enable-supabase")
-def enable_supabase_access(authorization: str | None = Header(default=None)):
-    """Grant the Firebase-authenticated Supabase role to active parents or verified therapists.
 
-    The caller must refresh their Firebase ID token after this endpoint succeeds.
-    This does not bypass Supabase Storage RLS policies.
-    """
+@app.post("/auth/enable-supabase")
+def enable_supabase_access(
+    authorization: str | None = Header(default=None)
+):
     if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Firebase sign-in required.")
+        raise HTTPException(
+            status_code=401,
+            detail="Firebase sign-in required."
+        )
 
     token = authorization[7:].strip()
+
     if not token:
-        raise HTTPException(status_code=401, detail="Missing Firebase ID token.")
+        raise HTTPException(
+            status_code=401,
+            detail="Missing Firebase ID token."
+        )
 
     try:
-        decoded = auth.verify_id_token(token, check_revoked=True)
+        decoded = auth.verify_id_token(
+            token,
+            check_revoked=True
+        )
         uid = decoded["uid"]
+
     except Exception as exc:
-        raise HTTPException(status_code=401, detail="Invalid Firebase ID token.") from exc
+        print(
+            "FIREBASE TOKEN VERIFICATION ERROR:",
+            type(exc).__name__,
+            str(exc),
+            flush=True
+        )
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid Firebase ID token."
+        ) from exc
 
     try:
-        profile = firestore.client().collection("users").document(uid).get()
-        if not profile.exists:
-            raise HTTPException(status_code=403, detail="User profile not found.")
+        user_doc = (
+            firestore.client()
+            .collection("users")
+            .document(uid)
+            .get()
+        )
 
-        data = profile.to_dict() or {}
+        if not user_doc.exists:
+            raise HTTPException(
+                status_code=403,
+                detail="User profile not found."
+            )
+
+        data = user_doc.to_dict() or {}
         role = data.get("role")
-        if role == "parent":
-            if data.get("isActive") is False:
-                raise HTTPException(status_code=403, detail="Active parent account required.")
-        elif role == "therapist":
-            if data.get("isActive") is not True or data.get("verificationStatus") != "verified":
-                raise HTTPException(status_code=403, detail="Verified active therapist required.")
-        else:
-            raise HTTPException(status_code=403, detail="Parent or therapist account required.")
 
+        if role not in ("parent", "therapist"):
+            raise HTTPException(
+                status_code=403,
+                detail="Invalid account role."
+            )
+
+        if (
+            data.get("isActive") is not True
+            or data.get("accountStatus") == "suspended"
+        ):
+            raise HTTPException(
+                status_code=403,
+                detail="Account is inactive or suspended."
+            )
+
+        # Pending therapists may upload their credentials.
+        # Verification is still required for clinical features.
         firebase_user = auth.get_user(uid)
+
+        if firebase_user.disabled:
+            raise HTTPException(
+                status_code=403,
+                detail="Firebase account is disabled."
+            )
+
         claims = dict(firebase_user.custom_claims or {})
+
         if claims.get("role") != "authenticated":
             claims["role"] = "authenticated"
             auth.set_custom_user_claims(uid, claims)
+
+        return {
+            "status": "ready",
+            "accountType": role,
+            "verificationStatus": data.get(
+                "verificationStatus", "pending"
+            ),
+            "message": "Refresh Firebase ID token."
+        }
+
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(status_code=503, detail="Unable to configure Supabase access.") from exc
 
-    return {
-        "status": "ready",
-        "accountType": role,
-        "message": "Refresh your Firebase ID token before using Supabase Storage.",
-    }
+    except Exception as exc:
+        print(
+            "SUPABASE ACCESS SETUP ERROR:",
+            type(exc).__name__,
+            str(exc),
+            flush=True
+        )
+        raise HTTPException(
+            status_code=503,
+            detail="Unable to configure Supabase access."
+        ) from exc
 
 
 # ---------------------------------------------------------------
@@ -440,36 +495,65 @@ def _active_patient_link(db, therapist_uid: str, parent_id: str,
 
 
 def _signed_private_photo(bucket: str, path: str) -> dict:
-    """Sign a private object on the server; never expose the service-role key."""
-    supabase_url = os.getenv("SUPABASE_URL", "").rstrip("/")
-    service_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+    """Return a short-lived private photo URL for an authorized therapist.
+
+    SUPABASE_SERVICE_ROLE_KEY must be the legacy service_role JWT (eyJ...),
+    not the anon/publishable key. Never put this key in Flutter.
+    """
+    supabase_url = os.getenv("SUPABASE_URL", "").strip().rstrip("/")
+    service_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
     if not supabase_url or not service_key:
         raise HTTPException(status_code=503, detail="Supabase backend credentials not configured.")
+    if not supabase_url.startswith("https://"):
+        raise HTTPException(status_code=503, detail="Invalid Supabase URL configuration.")
 
     endpoint = f"{supabase_url}/storage/v1/object/sign/{bucket}/{quote(path, safe='/')}"
     try:
         response = requests.post(
             endpoint,
-            headers={"apikey": service_key, "Authorization": f"Bearer {service_key}"},
-            json={"expiresIn": 300}, timeout=15,
+            headers={
+                "apikey": service_key,
+                "Authorization": f"Bearer {service_key}",
+                "Content-Type": "application/json",
+            },
+            json={"expiresIn": 300},
+            timeout=15,
         )
-        if response.status_code == 404:
-            return {"url": None}
-        response.raise_for_status()
-        signed_path = response.json().get("signedURL") or response.json().get("signedUrl")
+        # Print only the error status and short error body; never print credentials
+        # or successful signed URLs (which grant temporary access to private photos).
+        if not response.ok:
+            print(
+                f"SUPABASE PHOTO SIGN FAILED bucket={bucket} "
+                f"status={response.status_code} "
+                f"error={response.text[:350]}",
+                flush=True,
+            )
+            # A missing object is not a server configuration error.
+            if response.status_code == 404:
+                return {"url": None}
+            raise HTTPException(status_code=502, detail="Unable to generate private photo link.")
+
+        payload = response.json()
+        signed_path = payload.get("signedURL") or payload.get("signedUrl")
         if not isinstance(signed_path, str) or not signed_path:
-            raise ValueError("Supabase returned no signed URL")
+            print(f"SUPABASE PHOTO SIGN INVALID RESPONSE bucket={bucket}", flush=True)
+            raise HTTPException(status_code=502, detail="Supabase returned no signed photo URL.")
+
         if signed_path.startswith(("https://", "http://")):
             url = signed_path
         elif signed_path.startswith("/storage/v1/"):
             url = supabase_url + signed_path
         else:
             url = supabase_url + "/storage/v1" + (
-                signed_path if signed_path.startswith("/") else "/" + signed_path)
+                signed_path if signed_path.startswith("/") else "/" + signed_path
+            )
         return {"url": url}
-    except (requests.RequestException, ValueError) as exc:
-        print(f"SUPABASE PHOTO SIGN ERROR ({bucket}): {type(exc).__name__}: {exc}", flush=True)
-        raise HTTPException(status_code=502, detail="Unable to generate private photo link.") from exc
+    except requests.RequestException as exc:
+        print(f"SUPABASE PHOTO NETWORK ERROR bucket={bucket}: {type(exc).__name__}", flush=True)
+        raise HTTPException(status_code=502, detail="Supabase photo service unavailable.") from exc
+    except (ValueError, TypeError) as exc:
+        print(f"SUPABASE PHOTO JSON ERROR bucket={bucket}: {type(exc).__name__}", flush=True)
+        raise HTTPException(status_code=502, detail="Invalid Supabase photo response.") from exc
 
 
 @app.get("/therapist/parents/{parent_id}/photo")
@@ -664,6 +748,8 @@ class ExerciseRequest(BaseModel):
     topic: str = Field(min_length=1, max_length=40)
     count: int = Field(default=10, ge=1, le=10)
     exclude: list[str] = Field(default_factory=list, max_length=50)
+    hint: str = Field(default="", max_length=100)
+    suggested_words: list[str] = Field(default_factory=list, max_length=30)
 
 
 class Exercise(BaseModel):
@@ -677,14 +763,26 @@ class ExerciseResponse(BaseModel):
     exercises: list[Exercise]
 
 
-def build_exercise_prompt(level: str, topic: str, count: int, exclude: list[str]) -> str:
+def build_exercise_prompt(level: str, topic: str, count: int, exclude: list[str],
+                          hint: str = "", suggested=None) -> str:
     rules = LEVEL_RULES[level]
-    topic_hint = LEVEL_TOPICS[level][topic]
+    is_sound = level in ("special_words", "special_sentences")
+    if is_sound:
+        topic_hint = f'the "{topic}" sound, spelled {topic}'
+    else:
+        topic_hint = LEVEL_TOPICS[level].get(topic) or hint.strip() or topic
     avoid = ", ".join(w.upper() for w in exclude) or "none"
+
+    teacher = ""
+    if suggested:
+        sample = ", ".join(w.strip().upper() for w in suggested[:30] if w.strip())
+        if sample:
+            teacher = f"\nTeacher's example words for this topic: {sample}.\nYou may use some of them and add other words of the same kind.\n"
 
     extra = ""
     if level in ("special_words", "special_sentences"):
-        sound = SPECIAL_SOUNDS[topic]
+        fallback_hint = hint.strip() or ", ".join((suggested or [])[:3]) or topic
+        sound = SPECIAL_SOUNDS.get(topic) or {"hint": fallback_hint, "avoid": []}
         extra = "\n7. " + rules["extra_rule"].format(hint=sound["hint"])
         if sound["avoid"]:
             extra += f"\n8. Do not use any word spelled with {' or '.join(sound['avoid'])}."
@@ -701,6 +799,7 @@ RULES:
 4. No duplicates. Do not use these: {avoid}.
 5. "word" must be in UPPERCASE letters only.
 6. "emoji" is ONE emoji that shows the item.{extra}
+{teacher}
 
 Reply with JSON only, for example:
 {json.dumps({"exercises": [rules["example"]]}, ensure_ascii=False)}
@@ -713,7 +812,7 @@ def has_target_sound(text: str, topic: str, level: str) -> bool:
         return True
 
     target = topic.upper()
-    avoid = SPECIAL_SOUNDS[topic]["avoid"]
+    avoid = SPECIAL_SOUNDS.get(topic, {}).get("avoid", [])
     words = text.split()
 
     if any(bad in word for word in words for bad in avoid):
@@ -822,16 +921,19 @@ def generate_exercises(request: ExerciseRequest):
             detail=f"Unknown level: {request.level}"
         )
 
-    if topic not in LEVEL_TOPICS[level]:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unknown topic for {level}: {request.topic}"
-        )
+    if level in ("special_words", "special_sentences"):
+        topic = topic.upper()
+        if not (topic.isalpha() and topic.isascii() and len(topic) <= 3):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unknown topic for {level}: {request.topic}"
+            )
 
     started = time.time()
 
     data = ask_llama_json(
-        build_exercise_prompt(level, topic, request.count, request.exclude),
+        build_exercise_prompt(level, topic, request.count, request.exclude,
+                              request.hint, request.suggested_words),
         EXERCISE_SCHEMA,
         num_predict=800
     )
@@ -896,6 +998,8 @@ class QuestionRequest(BaseModel):
     topic: str = Field(min_length=1, max_length=40)
     count: int = Field(default=10, ge=1, le=10)
     exclude: list[str] = Field(default_factory=list, max_length=50)
+    hint: str = Field(default="", max_length=100)
+    examples: list[list[str]] = Field(default_factory=list, max_length=20)
 
 
 class Question(BaseModel):
@@ -909,8 +1013,16 @@ class QuestionResponse(BaseModel):
     questions: list[Question]
 
 
-def build_question_prompt(topic: str, count: int, exclude: list[str]) -> str:
+def build_question_prompt(topic: str, count: int, exclude: list[str],
+                          hint: str = "", examples=None) -> str:
     avoid = "; ".join(exclude) or "none"
+    topic_hint = QUESTION_TOPICS.get(topic) or hint.strip() or topic
+
+    teacher = ""
+    samples = [e for e in (examples or [])[:10] if len(e) >= 2]
+    if samples:
+        lines = "\n".join(f"- {e[0]} -> {e[1]}" for e in samples)
+        teacher = f"\nTeacher's example questions for this topic (ask similar ones, not the same):\n{lines}\n"
     example = {
         "questions": [{
             "question": "What is your favourite colour?",
@@ -922,7 +1034,7 @@ def build_question_prompt(topic: str, count: int, exclude: list[str]) -> str:
     return f"""
 Create {count} different speaking practice questions for children aged 7 to 10 who can answer simple questions in English.
 
-TOPIC: {topic} ({QUESTION_TOPICS[topic]})
+TOPIC: {topic} ({topic_hint})
 
 RULES:
 1. "question" is a short, simple question of 3 to 8 words, ending with "?".
@@ -930,6 +1042,7 @@ RULES:
 3. "wrong_answers" are exactly 2 simple sentences that clearly answer a DIFFERENT question.
 4. Use easy, child-friendly, everyday words only.
 5. No duplicates. Do not ask these questions again: {avoid}.
+{teacher}
 
 Reply with JSON only, for example:
 {json.dumps(example)}
@@ -992,16 +1105,11 @@ def generate_questions(request: QuestionRequest):
 
     topic = request.topic.strip()
 
-    if topic not in QUESTION_TOPICS:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unknown topic: {request.topic}"
-        )
-
     started = time.time()
 
     data = ask_llama_json(
-        build_question_prompt(topic, request.count, request.exclude),
+        build_question_prompt(topic, request.count, request.exclude,
+                              request.hint, request.examples),
         QUESTION_SCHEMA,
         num_predict=1700
     )

@@ -1,10 +1,151 @@
+import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
+
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+
 import 'therapist_ui.dart';
 import 'therapist_dashboard.dart';
 import 'therapist_patients_screen.dart';
 import 'therapist_profile_screen.dart';
+
+// Use your computer's LAN IP for a physical Android phone.
+const String kTalkiePalApiBaseUrl = 'http://192.168.0.139:8000';
+
+class _ParentPhotoAvatar extends StatefulWidget {
+  final String parentId;
+  final String parentName;
+  final double radius;
+  const _ParentPhotoAvatar({
+    required this.parentId,
+    required this.parentName,
+    this.radius = 25,
+  });
+
+  @override
+  State<_ParentPhotoAvatar> createState() => _ParentPhotoAvatarState();
+}
+
+class _ParentPhotoAvatarState extends State<_ParentPhotoAvatar> {
+  late Future<Uint8List?> _photoFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _photoFuture = _fetchPhoto();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ParentPhotoAvatar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.parentId != widget.parentId) {
+      _photoFuture = _fetchPhoto();
+    }
+  }
+
+  Future<Uint8List?> _fetchPhoto() async {
+    final parentId = widget.parentId.trim();
+    if (parentId.isEmpty) {
+      debugPrint('Parent photo: missing parentId in chats document');
+      return null;
+    }
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return null;
+    final token = await user.getIdToken();
+    if (token == null || token.isEmpty) return null;
+    final client = HttpClient();
+    try {
+      final uri = Uri.parse(
+        '$kTalkiePalApiBaseUrl/therapist/parents/${Uri.encodeComponent(parentId)}/photo',
+      );
+      final request = await client.getUrl(uri).timeout(const Duration(seconds: 15));
+      request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
+      final response = await request.close().timeout(const Duration(seconds: 15));
+      final body = await response.transform(utf8.decoder).join();
+      if (response.statusCode != 200) {
+        debugPrint('Parent photo API: HTTP ${response.statusCode}: $body');
+        return null;
+      }
+      final decoded = jsonDecode(body);
+      if (decoded is! Map<String, dynamic>) return null;
+      final url = decoded['url'];
+      if (url is! String || !url.startsWith('https://')) {
+        debugPrint('Parent photo API: no signed URL (check parent-photos object path)');
+        return null;
+      }
+
+      // Download the image bytes while the signed URL is valid.
+      // Avoid logging the signed URL because it contains an access token.
+      final imageRequest = await client.getUrl(Uri.parse(url))
+          .timeout(const Duration(seconds: 15));
+      final imageResponse = await imageRequest.close()
+          .timeout(const Duration(seconds: 15));
+      if (imageResponse.statusCode != 200) {
+        debugPrint('Parent photo Storage: HTTP ${imageResponse.statusCode}');
+        await imageResponse.drain<void>();
+        return null;
+      }
+      final builder = BytesBuilder(copy: false);
+      await for (final chunk in imageResponse) {
+        builder.add(chunk);
+      }
+      final bytes = builder.takeBytes();
+      if (bytes.isEmpty) {
+        debugPrint('Parent photo Storage: empty image');
+        return null;
+      }
+      debugPrint('Parent photo loaded successfully');
+      return bytes;
+    } catch (error) {
+      debugPrint('Parent photo load failed: ${error.runtimeType}');
+      return null;
+    } finally {
+      client.close(force: true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final initial = widget.parentName.trim().isNotEmpty
+        ? widget.parentName.trim()[0].toUpperCase()
+        : 'P';
+    return FutureBuilder<Uint8List?>(
+      future: _photoFuture,
+      builder: (context, snapshot) {
+        final bytes = snapshot.data;
+        return CircleAvatar(
+          radius: widget.radius,
+          backgroundColor: const Color(0xFFFFEFA8),
+          child: ClipOval(
+            child: SizedBox.square(
+              dimension: widget.radius * 2,
+              child: bytes == null
+                  ? Center(child: Text(initial, style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 19,
+                      color: Color(0xFF8154AA),
+                    )))
+                  : Image.memory(
+                      bytes,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Center(
+                        child: Text(initial, style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 19,
+                          color: Color(0xFF8154AA),
+                        )),
+                      ),
+                    ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
 
 class TherapistParentChatScreen extends StatelessWidget {
   const TherapistParentChatScreen({super.key});
@@ -85,12 +226,7 @@ class TherapistParentChatScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(20),
                     child: ListTile(
                       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-                      leading: CircleAvatar(
-                        radius: 25,
-                        backgroundColor: yellow,
-                        child: Text(parentName[0].toUpperCase(),
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 19, color: purple)),
-                      ),
+                      leading: _ParentPhotoAvatar(parentId: parentId, parentName: parentName),
                       title: Row(children: [
                         Expanded(child: Text(parentName,
                           maxLines: 1, overflow: TextOverflow.ellipsis,
@@ -209,10 +345,16 @@ class _TherapistConversationState extends State<_TherapistConversation> {
         foregroundColor: Colors.white,
         iconTheme: const IconThemeData(color: Colors.white),
         backgroundColor: purple,
-        title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(widget.parentName, style: const TextStyle(fontSize: 19, color: Colors.white, fontWeight: FontWeight.bold)),
-          if (widget.childName.isNotEmpty)
-            Text('Parent of ${widget.childName}', style: const TextStyle(fontSize: 12, color: Color(0xFFFFEFA8))),
+        title: Row(children: [
+          _ParentPhotoAvatar(parentId: widget.parentId, parentName: widget.parentName, radius: 22),
+          const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(widget.parentName, maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 19, color: Colors.white, fontWeight: FontWeight.bold)),
+            if (widget.childName.isNotEmpty)
+              Text('Parent of ${widget.childName}', maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 12, color: Color(0xFFFFEFA8))),
+          ])),
         ]),
       ),
       body: Column(children: [

@@ -8,6 +8,7 @@ import 'package:talkiepal/progress_page.dart';
 import 'package:talkiepal/services/parent_report.dart';
 import 'package:talkiepal/services/parent_store.dart';
 import 'package:talkiepal/services/progress_store.dart';
+import '../services/video_call_service.dart';
 
 import 'add_child_profile_screen.dart';
 import 'parent_ai_chat_screen.dart';
@@ -327,7 +328,22 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
         children: [
           const ParentSectionTitle('Upcoming sessions', icon: Icons.event_rounded),
           const SizedBox(height: 8),
-          ParentUpcomingAppointments(childId: child?.id),
+          ParentUpcomingAppointments(
+            childId: child?.id,
+            onJoinCall: (context, appointmentId) async {
+              final callId = await VideoCallService.startCall(
+                appointmentId: appointmentId,
+              );
+
+              if (!context.mounted) return;
+
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Calling therapist... Call ID: $callId'),
+                ),
+              );
+            },
+          ),
         ],
       ),
     );

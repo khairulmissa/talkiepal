@@ -14,14 +14,17 @@ import 'package:talkiepal/progress_page.dart';
 class AiQuestionPage extends StatefulWidget {
   final String topic;
   final int count;
-
   final List<PracticeQuestion>? initialQuestions;
+  final String topicHint;
+  final List<List<String>> exampleQuestions;
 
   const AiQuestionPage({
     super.key,
     required this.topic,
     this.count = 10,
     this.initialQuestions,
+    this.topicHint = '',
+    this.exampleQuestions = const [],
   });
 
   @override
@@ -61,7 +64,12 @@ class _AiQuestionPageState extends State<AiQuestionPage> with HoldToSpeak {
     final given = widget.initialQuestions;
     final result = given != null
         ? QuestionResult(questions: given, isOffline: false)
-        : await QuestionService.getQuestions(topic: widget.topic, count: widget.count);
+            : await QuestionService.getQuestions(
+            topic: widget.topic,
+            count: widget.count,
+            hint: widget.topicHint,
+            examples: widget.exampleQuestions,
+          );
 
     if (!mounted) return;
 
@@ -232,6 +240,8 @@ class _AiQuestionPageState extends State<AiQuestionPage> with HoldToSpeak {
           title: widget.topic,
           practiceAgain: (labels) => AiQuestionPage(
             topic: widget.topic,
+            topicHint: widget.topicHint,
+            exampleQuestions: widget.exampleQuestions,
             initialQuestions: all.where((q) => labels.contains(q.question)).toList(),
           ),
         ),

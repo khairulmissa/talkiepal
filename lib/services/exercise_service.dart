@@ -231,7 +231,13 @@ abstract final class ExerciseService {
   /// Recently shown words per level/topic, sent to the backend to avoid repeats.
   static final Map<String, List<String>> _recentWords = {};
 
-  static Future<ExerciseResult> getExercises({required String level, required String topic, int count = 10}) async {
+    static Future<ExerciseResult> getExercises({
+    required String level,
+    required String topic,
+    int count = 10,
+    String hint = '',
+    List<PracticeExercise> suggested = const [],
+  }) async {
     final key = '$level/$topic';
     final recent = _recentWords[key] ?? const <String>[];
 
@@ -241,6 +247,8 @@ abstract final class ExerciseService {
         'topic': topic,
         'count': count,
         'exclude': recent,
+        'hint': hint,
+        'suggested_words': [for (final w in suggested.take(30)) w.word],
       });
 
       final exercises = [
@@ -255,7 +263,7 @@ abstract final class ExerciseService {
 
       return ExerciseResult(exercises: exercises, isOffline: false);
     } catch (_) {
-      return ExerciseResult(exercises: _offlineExercises(level, topic, count), isOffline: true);
+            return ExerciseResult(exercises: _offlineExercises(level, topic, count, suggested), isOffline: true);
     }
   }
 
@@ -263,8 +271,22 @@ abstract final class ExerciseService {
     return PracticeExercise(word: word.toUpperCase(), emoji: emoji.isEmpty ? _defaultEmoji : emoji);
   }
 
-  static List<PracticeExercise> _offlineExercises(String level, String topic, int count) {
+    static List<PracticeExercise> _offlineExercises(
+    String level,
+    String topic,
+    int count, [
+    List<PracticeExercise> suggested = const [],
+  ]) {
+    
+    if (suggested.isNotEmpty) {
+      final words = [...suggested]..shuffle(Random());
+      return words.take(count).map((e) => _buildExercise(e.word, e.emoji)).toList();
+    }
     final words = (_offlineWords[level]?[topic] ?? const <String, String>{}).entries.toList()..shuffle(Random());
     return words.take(count).map((entry) => _buildExercise(entry.key, entry.value)).toList();
   }
-}
+
+
+  static Map<String, String> offlineWordsFor(String level, String topic) =>
+      _offlineWords[level]?[topic] ?? const <String, String>{};
+  }

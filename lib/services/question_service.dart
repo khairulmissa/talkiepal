@@ -77,17 +77,21 @@ class QuestionService {
   // Questions shown in recent sessions, sent to the AI so it asks new ones.
   static final Map<String, List<String>> _recentQuestions = {};
 
-  static Future<QuestionResult> getQuestions({
+    static Future<QuestionResult> getQuestions({
     required String topic,
     int count = 10,
+    String hint = '',
+    List<List<String>> examples = const [],
   }) async {
     final recent = _recentQuestions[topic] ?? [];
 
     try {
-      final data = await postToBackend(ApiConfig.generateQuestionsUrl, {
+            final data = await postToBackend(ApiConfig.generateQuestionsUrl, {
         'topic': topic,
         'count': count,
         'exclude': recent,
+        'hint': hint,
+        'examples': examples.take(20).toList(),
       });
 
       final questions = (data['questions'] as List)
@@ -108,13 +112,19 @@ class QuestionService {
 
       return QuestionResult(questions: questions, isOffline: false);
     } catch (_) {
-      return QuestionResult(questions: _offlineQuestionsFor(topic, count), isOffline: true);
+      return QuestionResult(questions: _offlineQuestionsFor(topic, count, examples), isOffline: true);
     }
   }
 
-  static List<PracticeQuestion> _offlineQuestionsFor(String topic, int count) {
+    static List<PracticeQuestion> _offlineQuestionsFor(
+    String topic,
+    int count, [
+    List<List<String>> examples = const [],
+  ]) {
     final random = Random();
-    final items = [...?_offlineQuestions[topic]]..shuffle(random);
+    // Admin dah bagi soalan contoh? Guna tu dulu.
+    final source = examples.isNotEmpty ? examples : (_offlineQuestions[topic] ?? const <List<String>>[]);
+    final items = [...source]..shuffle(random);
 
     return items.take(count).map((item) {
       final options = item.sublist(1)..shuffle(random);
@@ -125,4 +135,8 @@ class QuestionService {
       );
     }).toList();
   }
+
+  /// Soalan offline lama satu topic (guna masa admin "Import").
+  static List<List<String>> offlineQuestionsFor(String topic) =>
+      _offlineQuestions[topic] ?? const <List<String>>[];
 }
