@@ -748,6 +748,8 @@ class ExerciseRequest(BaseModel):
     topic: str = Field(min_length=1, max_length=40)
     count: int = Field(default=10, ge=1, le=10)
     exclude: list[str] = Field(default_factory=list, max_length=50)
+    hint: str = Field(default="", max_length=100)
+    suggested_words: list[str] = Field(default_factory=list, max_length=30)
 
 
 class Exercise(BaseModel):
@@ -761,14 +763,26 @@ class ExerciseResponse(BaseModel):
     exercises: list[Exercise]
 
 
-def build_exercise_prompt(level: str, topic: str, count: int, exclude: list[str]) -> str:
+def build_exercise_prompt(level: str, topic: str, count: int, exclude: list[str],
+                          hint: str = "", suggested=None) -> str:
     rules = LEVEL_RULES[level]
-    topic_hint = LEVEL_TOPICS[level][topic]
+    is_sound = level in ("special_words", "special_sentences")
+    if is_sound:
+        topic_hint = f'the "{topic}" sound, spelled {topic}'
+    else:
+        topic_hint = LEVEL_TOPICS[level].get(topic) or hint.strip() or topic
     avoid = ", ".join(w.upper() for w in exclude) or "none"
+
+    teacher = ""
+    if suggested:
+        sample = ", ".join(w.strip().upper() for w in suggested[:30] if w.strip())
+        if sample:
+            teacher = f"\nTeacher's example words for this topic: {sample}.\nYou may use some of them and add other words of the same kind.\n"
 
     extra = ""
     if level in ("special_words", "special_sentences"):
-        sound = SPECIAL_SOUNDS[topic]
+        fallback_hint = hint.strip() or ", ".join((suggested or [])[:3]) or topic
+        sound = SPECIAL_SOUNDS.get(topic) or {"hint": fallback_hint, "avoid": []}
         extra = "\n7. " + rules["extra_rule"].format(hint=sound["hint"])
         if sound["avoid"]:
             extra += f"\n8. Do not use any word spelled with {' or '.join(sound['avoid'])}."
@@ -785,6 +799,7 @@ RULES:
 4. No duplicates. Do not use these: {avoid}.
 5. "word" must be in UPPERCASE letters only.
 6. "emoji" is ONE emoji that shows the item.{extra}
+{teacher}
 
 Reply with JSON only, for example:
 {json.dumps({"exercises": [rules["example"]]}, ensure_ascii=False)}
@@ -797,7 +812,7 @@ def has_target_sound(text: str, topic: str, level: str) -> bool:
         return True
 
     target = topic.upper()
-    avoid = SPECIAL_SOUNDS[topic]["avoid"]
+    avoid = SPECIAL_SOUNDS.get(topic, {}).get("avoid", [])
     words = text.split()
 
     if any(bad in word for word in words for bad in avoid):
@@ -906,16 +921,19 @@ def generate_exercises(request: ExerciseRequest):
             detail=f"Unknown level: {request.level}"
         )
 
-    if topic not in LEVEL_TOPICS[level]:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unknown topic for {level}: {request.topic}"
-        )
+    if level in ("special_words", "special_sentences"):
+        topic = topic.upper()
+        if not (topic.isalpha() and topic.isascii() and len(topic) <= 3):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unknown topic for {level}: {request.topic}"
+            )
 
     started = time.time()
 
     data = ask_llama_json(
-        build_exercise_prompt(level, topic, request.count, request.exclude),
+        build_exercise_prompt(level, topic, request.count, request.exclude,
+                              request.hint, request.suggested_words),
         EXERCISE_SCHEMA,
         num_predict=800
     )
@@ -980,6 +998,8 @@ class QuestionRequest(BaseModel):
     topic: str = Field(min_length=1, max_length=40)
     count: int = Field(default=10, ge=1, le=10)
     exclude: list[str] = Field(default_factory=list, max_length=50)
+    hint: str = Field(default="", max_length=100)
+    examples: list[list[str]] = Field(default_factory=list, max_length=20)
 
 
 class Question(BaseModel):
@@ -993,8 +1013,16 @@ class QuestionResponse(BaseModel):
     questions: list[Question]
 
 
-def build_question_prompt(topic: str, count: int, exclude: list[str]) -> str:
+def build_question_prompt(topic: str, count: int, exclude: list[str],
+                          hint: str = "", examples=None) -> str:
     avoid = "; ".join(exclude) or "none"
+    topic_hint = QUESTION_TOPICS.get(topic) or hint.strip() or topic
+
+    teacher = ""
+    samples = [e for e in (examples or [])[:10] if len(e) >= 2]
+    if samples:
+        lines = "\n".join(f"- {e[0]} -> {e[1]}" for e in samples)
+        teacher = f"\nTeacher's example questions for this topic (ask similar ones, not the same):\n{lines}\n"
     example = {
         "questions": [{
             "question": "What is your favourite colour?",
@@ -1006,7 +1034,7 @@ def build_question_prompt(topic: str, count: int, exclude: list[str]) -> str:
     return f"""
 Create {count} different speaking practice questions for children aged 7 to 10 who can answer simple questions in English.
 
-TOPIC: {topic} ({QUESTION_TOPICS[topic]})
+TOPIC: {topic} ({topic_hint})
 
 RULES:
 1. "question" is a short, simple question of 3 to 8 words, ending with "?".
@@ -1014,6 +1042,7 @@ RULES:
 3. "wrong_answers" are exactly 2 simple sentences that clearly answer a DIFFERENT question.
 4. Use easy, child-friendly, everyday words only.
 5. No duplicates. Do not ask these questions again: {avoid}.
+{teacher}
 
 Reply with JSON only, for example:
 {json.dumps(example)}
@@ -1076,16 +1105,11 @@ def generate_questions(request: QuestionRequest):
 
     topic = request.topic.strip()
 
-    if topic not in QUESTION_TOPICS:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unknown topic: {request.topic}"
-        )
-
     started = time.time()
 
     data = ask_llama_json(
-        build_question_prompt(topic, request.count, request.exclude),
+        build_question_prompt(topic, request.count, request.exclude,
+                              request.hint, request.examples),
         QUESTION_SCHEMA,
         num_predict=1700
     )

@@ -1,17 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:talkiepal/practice/ai_sound_page.dart';
+import 'package:talkiepal/services/exercise_service.dart';
+import 'package:talkiepal/services/study_content_service.dart';
 import 'package:talkiepal/widgets/level_menu_page.dart';
-
-class _Sound {
-  final String sound;
-  final String emoji;
-  final String description;
-
-  const _Sound(this.sound, this.emoji, this.description);
-}
 
 class SpecialSoundPage extends StatelessWidget {
   const SpecialSoundPage({super.key});
+
+  static const String _level = 'special_sound';
 
   static const LevelTheme _theme = LevelTheme(
     letter: 'D',
@@ -22,39 +18,29 @@ class SpecialSoundPage extends StatelessWidget {
     dinoColor: Color(0xFFE77BC3),
   );
 
-  static const List<_Sound> _level1 = [
-    _Sound('R', '🐰', 'The Basic Tricky Sound - Roll your tongue'),
-    _Sound('S', '🐍', 'The Hissing Sound - Like a snake'),
-    _Sound('L', '🦁', 'The Light Sound - Tongue touches top'),
-  ];
 
-  static const List<_Sound> _level2 = [
-    _Sound('TH', '👍', 'The Biting Sound - Tongue between teeth'),
-    _Sound('SH', '🤫', 'The Quiet Sound - Like "shhh"'),
-    _Sound('CH', '🚂', 'The Train Sound - Like a choo-choo train'),
-    _Sound('V', '🚐', 'The Buzzing Sound - Teeth on lip'),
-    _Sound('W', '💧', 'The Woo Sound - Round your lips'),
-  ];
-
-  /// Every topic of this level (words and mini challenge for each sound),
-  /// as named on the results screen.
   static List<String> get topics => topicEmojis.keys.toList();
 
-  /// The same topics with their pictures.
+ 
   static Map<String, String> get topicEmojis => {
-    for (final s in [..._level1, ..._level2]) ...{'Sound ${s.sound}': s.emoji, 'Mini Challenge ${s.sound}': '🏆'},
+    for (final (sound, emoji, _, _) in StudyContentService.specialSoundDefaults)
+      ...{'Sound $sound': emoji, 'Mini Challenge $sound': '🏆'},
   };
 
-  LevelTopic _soundTile(_Sound sound) {
+  static List<PracticeExercise> _toExercises(List<StudyWord> words) => [
+    for (final w in words) PracticeExercise(word: w.word, emoji: w.emoji),
+  ];
+
+  LevelTopic _soundTile(StudySubtopic sound) {
     return LevelTopic(
       emoji: sound.emoji,
-      title: 'Sound ${sound.sound}',
+      title: 'Sound ${sound.title}',
       onTap: (context) => _showModes(context, sound),
     );
   }
 
-  /// Lets the child choose Words to Practice or Mini Challenge for a sound.
-  void _showModes(BuildContext context, _Sound sound) {
+
+  void _showModes(BuildContext context, StudySubtopic sound) {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -64,7 +50,12 @@ class SpecialSoundPage extends StatelessWidget {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => AiSoundPage(sound: sound.sound, isSentence: isSentence),
+              builder: (context) => AiSoundPage(
+                sound: sound.title,
+                isSentence: isSentence,
+                soundHint: sound.hint,
+                suggestedWords: _toExercises(isSentence ? sound.sentences : sound.words),
+              ),
             ),
           );
         }
@@ -89,15 +80,17 @@ class SpecialSoundPage extends StatelessWidget {
                 Text(sound.emoji, style: const TextStyle(fontSize: 48)),
                 const SizedBox(height: 6),
                 Text(
-                  'Sound ${sound.sound}',
+                  'Sound ${sound.title}',
                   style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: _theme.darkColor),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  sound.description,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF7A6A85)),
-                ),
+                if (sound.description.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    sound.description,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF7A6A85)),
+                  ),
+                ],
                 const SizedBox(height: 20),
                 _buildModeButton(
                   emoji: '📝',
@@ -177,15 +170,26 @@ class SpecialSoundPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LevelMenuPage(
-      theme: _theme,
-      dinoMessage: "Let's practice tricky sounds together!",
-      question: 'Which sound do you want to practice? 🎶',
-      tip: 'Watch the mouth shape, listen first, then try the sound slowly!',
-      sections: [
-        LevelSection(heading: '🌟 Level 1', topics: [for (final sound in _level1) _soundTile(sound)]),
-        LevelSection(heading: '🚀 Level 2', topics: [for (final sound in _level2) _soundTile(sound)]),
-      ],
+    return StreamBuilder<List<StudySubtopic>>(
+      stream: StudyContentService.watchMenu(_level),
+      builder: (context, snapshot) {
+        final sounds = snapshot.data ?? StudyContentService.defaultsFor(_level);
+        final level1 = sounds.where((s) => s.group != 2).toList();
+        final level2 = sounds.where((s) => s.group == 2).toList();
+
+        return LevelMenuPage(
+          theme: _theme,
+          dinoMessage: "Let's practice tricky sounds together!",
+          question: 'Which sound do you want to practice? 🎶',
+          tip: 'Watch the mouth shape, listen first, then try the sound slowly!',
+          sections: [
+            if (level1.isNotEmpty)
+              LevelSection(heading: '🌟 Level 1', topics: [for (final s in level1) _soundTile(s)]),
+            if (level2.isNotEmpty)
+              LevelSection(heading: '🚀 Level 2', topics: [for (final s in level2) _soundTile(s)]),
+          ],
+        );
+      },
     );
   }
 }

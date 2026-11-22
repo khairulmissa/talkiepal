@@ -20,6 +20,12 @@ class AiPracticePage extends StatefulWidget {
   final String topicEmoji;
   final int count;
 
+    /// Terangkan topic pada AI (dari admin). Kosong = guna yang backend tahu.
+  final String topicHint;
+
+  /// Suggested words admin: panduan AI + backup bila AI offline.
+  final List<PracticeExercise> suggestedWords;
+
   /// Practice exactly these (e.g. the hard words again) instead of new AI words.
   final List<PracticeExercise>? exercises;
 
@@ -30,6 +36,8 @@ class AiPracticePage extends StatefulWidget {
     required this.topic,
     this.topicEmoji = '⭐',
     this.count = 10,
+    this.topicHint = '',
+    this.suggestedWords = const [],
     this.exercises,
   });
 
@@ -78,7 +86,13 @@ class _AiPracticePageState extends State<AiPracticePage> with HoldToSpeak {
     final given = widget.exercises;
     final result = given != null
         ? ExerciseResult(exercises: given, isOffline: false)
-        : await ExerciseService.getExercises(level: widget.level, topic: widget.topic, count: widget.count);
+                : await ExerciseService.getExercises(
+            level: widget.level,
+            topic: widget.topic,
+            count: widget.count,
+            hint: widget.topicHint,
+            suggested: widget.suggestedWords,
+          );
 
     if (!mounted || run != _loadRun) return;
 
@@ -143,6 +157,8 @@ class _AiPracticePageState extends State<AiPracticePage> with HoldToSpeak {
             levelLabel: widget.levelLabel,
             topic: widget.topic,
             topicEmoji: widget.topicEmoji,
+            topicHint: widget.topicHint, 
+            suggestedWords: widget.suggestedWords,
             exercises: all.where((e) => labels.contains(e.word)).toList(),
           ),
         ),

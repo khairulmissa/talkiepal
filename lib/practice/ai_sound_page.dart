@@ -21,6 +21,8 @@ class AiSoundPage extends StatefulWidget {
 
   /// Practice exactly these (e.g. the hard words again) instead of new AI words.
   final List<PracticeExercise>? exercises;
+  final String soundHint;
+  final List<PracticeExercise> suggestedWords;
 
   const AiSoundPage({
     super.key,
@@ -28,6 +30,8 @@ class AiSoundPage extends StatefulWidget {
     required this.isSentence,
     this.count = 10,
     this.exercises,
+    this.soundHint = '',
+    this.suggestedWords = const [],
   });
 
   @override
@@ -117,7 +121,13 @@ class _AiSoundPageState extends State<AiSoundPage> with HoldToSpeak {
     final given = widget.exercises;
     final result = given != null
         ? ExerciseResult(exercises: given, isOffline: false)
-        : await ExerciseService.getExercises(level: _apiLevel, topic: widget.sound, count: widget.count);
+            : await ExerciseService.getExercises(
+            level: _apiLevel,
+            topic: widget.sound,
+            count: widget.count,
+            hint: widget.soundHint,
+            suggested: widget.suggestedWords,
+          );
 
     if (!mounted || run != _loadRun) return;
 
@@ -294,6 +304,8 @@ class _AiSoundPageState extends State<AiSoundPage> with HoldToSpeak {
           practiceAgain: (labels) => AiSoundPage(
             sound: widget.sound,
             isSentence: widget.isSentence,
+            soundHint: widget.soundHint,
+            suggestedWords: widget.suggestedWords,
             exercises: all.where((e) => labels.contains(e.word)).toList(),
           ),
         ),
