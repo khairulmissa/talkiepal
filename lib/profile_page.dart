@@ -21,7 +21,6 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   bool isNotificationEnabled = true;
-  String selectedLanguage = 'English';
   int? _age;
   String? _targetSound;
 
@@ -36,11 +35,9 @@ class _ProfilePageState extends State<ProfilePage> {
     try {
       final data = await KidProfileStore.load();
       if (!mounted || data.isEmpty) return;
-      final language = data['language'];
       final sound = (data['targetSound'] ?? '').toString().trim();
       setState(() {
         if (data['practiceReminders'] is bool) isNotificationEnabled = data['practiceReminders'] as bool;
-        if (language is String && _languages.containsKey(language)) selectedLanguage = language;
         _age = data['age'] is num ? (data['age'] as num).toInt() : null;
         _targetSound = sound.isEmpty ? null : sound;
       });
@@ -123,13 +120,6 @@ class _ProfilePageState extends State<ProfilePage> {
                               activeTrackColor: _plum,
                               onChanged: _setReminders,
                             ),
-                          ),
-                          _buildMenuItem(
-                            emoji: '🌐',
-                            title: 'Language',
-                            subtitle: 'Choose your language',
-                            iconBackground: const Color(0xFFE0F7FA),
-                            trailing: _buildLanguagePicker(),
                           ),
                           _buildMenuItem(
                             emoji: '❓',
@@ -313,54 +303,6 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  static const Map<String, String> _languages = {
-    'English': 'English',
-    'Bahasa Malaysia': 'Malay',
-    'Chinese': 'Chinese',
-    'Arabic': 'Arabic',
-  };
-
-  Widget _buildLanguagePicker() {
-    final textStyle = Theme.of(context).textTheme.bodyMedium!.merge(
-          const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: _plumDark),
-        );
-
-    return Container(
-      padding: const EdgeInsets.only(left: 10, right: 2),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF3E5F5),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: selectedLanguage,
-          icon: const Icon(Icons.arrow_drop_down_rounded, color: _plumDark),
-          borderRadius: BorderRadius.circular(14),
-          style: textStyle,
-          // Short name when closed, so the row has room for its text.
-          selectedItemBuilder: (context) => _languages.values
-              .map((short) => Align(alignment: Alignment.centerLeft, child: Text(short, style: textStyle)))
-              .toList(),
-          items: _languages.keys
-              .map((language) => DropdownMenuItem(value: language, child: Text(language)))
-              .toList(),
-          onChanged: (String? newValue) {
-            if (newValue == null) return;
-            final previous = selectedLanguage;
-            setState(() {
-              selectedLanguage = newValue;
-            });
-            _savePreference(
-              language: newValue,
-              message: 'Language saved: $newValue 🌐',
-              undo: () => setState(() => selectedLanguage = previous),
-            );
-          },
-        ),
-      ),
-    );
-  }
-
   Widget _buildLogoutButton() {
     return GestureDetector(
       onTap: () => _showLogoutDialog(context),
@@ -441,12 +383,11 @@ class _ProfilePageState extends State<ProfilePage> {
   /// Saves a preference in the child's profile. [undo] puts the switch back if saving fails.
   Future<void> _savePreference({
     bool? practiceReminders,
-    String? language,
     required String message,
     VoidCallback? undo,
   }) async {
     try {
-      await KidProfileStore.savePreferences(practiceReminders: practiceReminders, language: language);
+      await KidProfileStore.savePreferences(practiceReminders: practiceReminders);
       _showMessage(message);
     } catch (e) {
       if (mounted) undo?.call();

@@ -25,13 +25,12 @@ class KidProfileStore {
     return snapshot.data() ?? {};
   }
 
-  /// Saves the practice reminder switch and the language choice.
-  static Future<void> savePreferences({bool? practiceReminders, String? language}) async {
+    /// Saves the practice reminder switch.
+  static Future<void> savePreferences({bool? practiceReminders}) async {
     final ref = _ref;
     if (ref == null) throw StateError('Please choose a child profile first.');
     await ref.update({
       'practiceReminders': ?practiceReminders,
-      'language': ?language,
       'updatedAt': FieldValue.serverTimestamp(),
     });
   }

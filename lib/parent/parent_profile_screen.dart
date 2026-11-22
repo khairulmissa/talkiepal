@@ -200,43 +200,6 @@ class _ParentProfileScreenState extends State<ParentProfileScreen> {
     );
   }
 
-  void _showLanguage() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (sheetContext) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const _SheetHandle(),
-              const Text(
-                'Language',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: ParentColors.ink),
-              ),
-              const SizedBox(height: 8),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('English', style: TextStyle(fontWeight: FontWeight.w700)),
-                trailing: const Icon(Icons.check_circle_rounded, color: ParentColors.purple),
-                onTap: () => Navigator.pop(sheetContext),
-              ),
-              const ListTile(
-                contentPadding: EdgeInsets.zero,
-                enabled: false,
-                title: Text('Bahasa Melayu'),
-                trailing: Text('Coming soon', style: TextStyle(fontSize: 12, color: ParentColors.soft)),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final name = parent?.name ?? '';
@@ -322,13 +285,7 @@ class _ParentProfileScreenState extends State<ParentProfileScreen> {
               }),
             ),
           ),
-          _Row(
-            Icons.language_rounded,
-            'Language',
-            color: const Color(0xFF00897B),
-            value: 'English',
-            onTap: _showLanguage,
-          ),
+          
         ]),
         _Group('Support', [
           _Row(
