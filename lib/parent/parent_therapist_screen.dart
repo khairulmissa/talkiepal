@@ -32,6 +32,61 @@ class _ParentTherapistScreenState extends State<ParentTherapistScreen> {
   void initState() {
     super.initState();
     _childrenFuture = ProgressStore.instance.children();
+    // Repair legacy child assignments created before therapist_assignments existed.
+    _syncExistingAssignments();
+  }
+
+  Future<void> _syncExistingAssignments() async {
+    final parentUid = FirebaseAuth.instance.currentUser?.uid;
+    if (parentUid == null) return;
+    try {
+      final db = FirebaseFirestore.instance;
+      final children = await db.collection('users').doc(parentUid)
+          .collection('children').get();
+      for (final childDoc in children.docs) {
+        final child = childDoc.data();
+        final therapistUid = (child['assignedTherapistId'] ?? '').toString().trim();
+        if (therapistUid.isEmpty) continue;
+
+        final assignmentRef = db.collection('therapist_assignments')
+            .doc('${parentUid}_${childDoc.id}');
+        final existing = await assignmentRef.get();
+        final existingData = existing.data();
+        final alreadyLinked = existingData != null &&
+            existingData['therapistUid'] == therapistUid &&
+            existingData['parentUid'] == parentUid &&
+            existingData['childId'] == childDoc.id &&
+            existingData['status'] == 'active';
+        final primaryMissing = child['primaryTherapistId'] != therapistUid;
+        if (alreadyLinked && !primaryMissing) continue;
+
+        final batch = db.batch();
+        if (primaryMissing) {
+          batch.update(childDoc.reference, {'primaryTherapistId': therapistUid});
+        }
+        if (!alreadyLinked) {
+          batch.set(assignmentRef, {
+            'therapistUid': therapistUid,
+            'parentUid': parentUid,
+            'parentId': parentUid,
+            'childId': childDoc.id,
+            'status': 'active',
+            'progressPercent': existingData?['progressPercent'] ?? 0,
+            'createdAt': existingData?['createdAt'] ?? FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+        }
+        await batch.commit();
+        debugPrint('Synced therapist assignment for child ${childDoc.id}');
+      }
+    } catch (error) {
+      // Do not block parent screen; Firestore rules may require a backend sync.
+      debugPrint('Unable to sync existing therapist assignments: $error');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Assignment sync failed: $error'),
+        ));
+      }
+    }
   }
 
   String? get _uid => FirebaseAuth.instance.currentUser?.uid;
@@ -121,13 +176,43 @@ class _ParentTherapistScreenState extends State<ParentTherapistScreen> {
     if (confirmed != true || !mounted) return;
     setState(() => _saving = true);
     try {
-      // This simple assignment is suitable only when Firestore rules permit
-      // parents to assign a verified therapist to their own child.
-      await ref.update({
+      final parentUid = _uid;
+      final childId = _selectedChildId;
+      if (parentUid == null || childId == null) {
+        throw StateError('Please select a child and sign in again.');
+      }
+
+      // Only approved, active therapist accounts may be assigned.
+      final therapistSnapshot = await FirebaseFirestore.instance
+          .collection('therapists').doc(therapistId).get();
+      final therapist = therapistSnapshot.data();
+      if (therapist == null ||
+          therapist['isActive'] != true ||
+          (therapist['verificationStatus'] ?? '').toString().toLowerCase() != 'verified') {
+        throw StateError('This therapist is not currently approved.');
+      }
+
+      final db = FirebaseFirestore.instance;
+      // Stable ID prevents duplicate assignments for the same child.
+      final assignmentRef = db.collection('therapist_assignments')
+          .doc('${parentUid}_$childId');
+      final batch = db.batch();
+      batch.update(ref, {
         'assignedTherapistId': therapistId,
+        'primaryTherapistId': therapistId,
         'assignedTherapistName': therapistName,
         'therapistAssignedAt': FieldValue.serverTimestamp(),
       });
+      batch.set(assignmentRef, {
+        'therapistUid': therapistId,
+        'parentUid': parentUid,
+        'parentId': parentUid,
+        'childId': childId,
+        'status': 'active',
+        'progressPercent': 0,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      await batch.commit();
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Therapist assigned successfully.')));
     } catch (e) {

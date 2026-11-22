@@ -141,6 +141,79 @@ class _ChildProfileDetailsScreenState
     );
   }
 
+  bool _deletingChild = false;
+
+  Future<void> _confirmDeleteChild(String childName) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Delete Child Profile?'),
+        content: Text(
+          'Delete the profile for $childName? This cannot be undone. '
+          'Related practice, appointment, and therapist records may still exist '
+          'until they are separately cleaned up.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Delete Profile'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted || _deletingChild) return;
+
+    final ref = _childRef;
+    if (ref == null) return;
+    setState(() => _deletingChild = true);
+    try {
+      // Deletes only the child document. Subcollections and linked records
+      // require a trusted backend cleanup before production deployment.
+      await ref.delete();
+      if (!mounted) return;
+      Navigator.pop(context, true);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Unable to delete child profile: $error')),
+      );
+    } finally {
+      if (mounted) setState(() => _deletingChild = false);
+    }
+  }
+
+  Widget _deleteChildButton(String name) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, bottom: 18),
+      child: SizedBox(
+        width: double.infinity,
+        child: OutlinedButton.icon(
+          onPressed: _deletingChild ? null : () => _confirmDeleteChild(name),
+          icon: _deletingChild
+              ? const SizedBox(
+                  height: 18,
+                  width: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.delete_outline_rounded),
+          label: Text(_deletingChild ? 'Deleting...' : 'Delete Child Profile'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: Colors.red,
+            side: const BorderSide(color: Colors.redAccent),
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          ),
+        ),
+      ),
+    );
+  }
+
   Uint8List? _childPhoto(Map<String, dynamic> data) {
     final raw = data['base64Photo'];
     if (raw is! String || raw.isEmpty) return null;
@@ -540,6 +613,7 @@ class _ChildProfileDetailsScreenState
                       _childInformation(data),
                       _assignedTherapist(data),
                       _learningProgress(),
+                       _deleteChildButton(name),
                     ],
                   ),
                 );

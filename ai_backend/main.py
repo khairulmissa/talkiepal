@@ -274,60 +274,115 @@ def chat(request: ChatRequest):
 
 
 
-# ---------------------------------------------------------------
-# FIREBASE -> SUPABASE: authenticated role for parent and therapist storage
-# ---------------------------------------------------------------
-@app.post("/auth/enable-supabase")
-def enable_supabase_access(authorization: str | None = Header(default=None)):
-    """Grant the Firebase-authenticated Supabase role to active parents or verified therapists.
 
-    The caller must refresh their Firebase ID token after this endpoint succeeds.
-    This does not bypass Supabase Storage RLS policies.
-    """
+@app.post("/auth/enable-supabase")
+def enable_supabase_access(
+    authorization: str | None = Header(default=None)
+):
     if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Firebase sign-in required.")
+        raise HTTPException(
+            status_code=401,
+            detail="Firebase sign-in required."
+        )
 
     token = authorization[7:].strip()
+
     if not token:
-        raise HTTPException(status_code=401, detail="Missing Firebase ID token.")
+        raise HTTPException(
+            status_code=401,
+            detail="Missing Firebase ID token."
+        )
 
     try:
-        decoded = auth.verify_id_token(token, check_revoked=True)
+        decoded = auth.verify_id_token(
+            token,
+            check_revoked=True
+        )
         uid = decoded["uid"]
+
     except Exception as exc:
-        raise HTTPException(status_code=401, detail="Invalid Firebase ID token.") from exc
+        print(
+            "FIREBASE TOKEN VERIFICATION ERROR:",
+            type(exc).__name__,
+            str(exc),
+            flush=True
+        )
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid Firebase ID token."
+        ) from exc
 
     try:
-        profile = firestore.client().collection("users").document(uid).get()
-        if not profile.exists:
-            raise HTTPException(status_code=403, detail="User profile not found.")
+        user_doc = (
+            firestore.client()
+            .collection("users")
+            .document(uid)
+            .get()
+        )
 
-        data = profile.to_dict() or {}
+        if not user_doc.exists:
+            raise HTTPException(
+                status_code=403,
+                detail="User profile not found."
+            )
+
+        data = user_doc.to_dict() or {}
         role = data.get("role")
-        if role == "parent":
-            if data.get("isActive") is False:
-                raise HTTPException(status_code=403, detail="Active parent account required.")
-        elif role == "therapist":
-            if data.get("isActive") is not True or data.get("verificationStatus") != "verified":
-                raise HTTPException(status_code=403, detail="Verified active therapist required.")
-        else:
-            raise HTTPException(status_code=403, detail="Parent or therapist account required.")
 
+        if role not in ("parent", "therapist"):
+            raise HTTPException(
+                status_code=403,
+                detail="Invalid account role."
+            )
+
+        if (
+            data.get("isActive") is not True
+            or data.get("accountStatus") == "suspended"
+        ):
+            raise HTTPException(
+                status_code=403,
+                detail="Account is inactive or suspended."
+            )
+
+        # Pending therapists may upload their credentials.
+        # Verification is still required for clinical features.
         firebase_user = auth.get_user(uid)
+
+        if firebase_user.disabled:
+            raise HTTPException(
+                status_code=403,
+                detail="Firebase account is disabled."
+            )
+
         claims = dict(firebase_user.custom_claims or {})
+
         if claims.get("role") != "authenticated":
             claims["role"] = "authenticated"
             auth.set_custom_user_claims(uid, claims)
+
+        return {
+            "status": "ready",
+            "accountType": role,
+            "verificationStatus": data.get(
+                "verificationStatus", "pending"
+            ),
+            "message": "Refresh Firebase ID token."
+        }
+
     except HTTPException:
         raise
-    except Exception as exc:
-        raise HTTPException(status_code=503, detail="Unable to configure Supabase access.") from exc
 
-    return {
-        "status": "ready",
-        "accountType": role,
-        "message": "Refresh your Firebase ID token before using Supabase Storage.",
-    }
+    except Exception as exc:
+        print(
+            "SUPABASE ACCESS SETUP ERROR:",
+            type(exc).__name__,
+            str(exc),
+            flush=True
+        )
+        raise HTTPException(
+            status_code=503,
+            detail="Unable to configure Supabase access."
+        ) from exc
 
 
 # ---------------------------------------------------------------
@@ -440,36 +495,65 @@ def _active_patient_link(db, therapist_uid: str, parent_id: str,
 
 
 def _signed_private_photo(bucket: str, path: str) -> dict:
-    """Sign a private object on the server; never expose the service-role key."""
-    supabase_url = os.getenv("SUPABASE_URL", "").rstrip("/")
-    service_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+    """Return a short-lived private photo URL for an authorized therapist.
+
+    SUPABASE_SERVICE_ROLE_KEY must be the legacy service_role JWT (eyJ...),
+    not the anon/publishable key. Never put this key in Flutter.
+    """
+    supabase_url = os.getenv("SUPABASE_URL", "").strip().rstrip("/")
+    service_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
     if not supabase_url or not service_key:
         raise HTTPException(status_code=503, detail="Supabase backend credentials not configured.")
+    if not supabase_url.startswith("https://"):
+        raise HTTPException(status_code=503, detail="Invalid Supabase URL configuration.")
 
     endpoint = f"{supabase_url}/storage/v1/object/sign/{bucket}/{quote(path, safe='/')}"
     try:
         response = requests.post(
             endpoint,
-            headers={"apikey": service_key, "Authorization": f"Bearer {service_key}"},
-            json={"expiresIn": 300}, timeout=15,
+            headers={
+                "apikey": service_key,
+                "Authorization": f"Bearer {service_key}",
+                "Content-Type": "application/json",
+            },
+            json={"expiresIn": 300},
+            timeout=15,
         )
-        if response.status_code == 404:
-            return {"url": None}
-        response.raise_for_status()
-        signed_path = response.json().get("signedURL") or response.json().get("signedUrl")
+        # Print only the error status and short error body; never print credentials
+        # or successful signed URLs (which grant temporary access to private photos).
+        if not response.ok:
+            print(
+                f"SUPABASE PHOTO SIGN FAILED bucket={bucket} "
+                f"status={response.status_code} "
+                f"error={response.text[:350]}",
+                flush=True,
+            )
+            # A missing object is not a server configuration error.
+            if response.status_code == 404:
+                return {"url": None}
+            raise HTTPException(status_code=502, detail="Unable to generate private photo link.")
+
+        payload = response.json()
+        signed_path = payload.get("signedURL") or payload.get("signedUrl")
         if not isinstance(signed_path, str) or not signed_path:
-            raise ValueError("Supabase returned no signed URL")
+            print(f"SUPABASE PHOTO SIGN INVALID RESPONSE bucket={bucket}", flush=True)
+            raise HTTPException(status_code=502, detail="Supabase returned no signed photo URL.")
+
         if signed_path.startswith(("https://", "http://")):
             url = signed_path
         elif signed_path.startswith("/storage/v1/"):
             url = supabase_url + signed_path
         else:
             url = supabase_url + "/storage/v1" + (
-                signed_path if signed_path.startswith("/") else "/" + signed_path)
+                signed_path if signed_path.startswith("/") else "/" + signed_path
+            )
         return {"url": url}
-    except (requests.RequestException, ValueError) as exc:
-        print(f"SUPABASE PHOTO SIGN ERROR ({bucket}): {type(exc).__name__}: {exc}", flush=True)
-        raise HTTPException(status_code=502, detail="Unable to generate private photo link.") from exc
+    except requests.RequestException as exc:
+        print(f"SUPABASE PHOTO NETWORK ERROR bucket={bucket}: {type(exc).__name__}", flush=True)
+        raise HTTPException(status_code=502, detail="Supabase photo service unavailable.") from exc
+    except (ValueError, TypeError) as exc:
+        print(f"SUPABASE PHOTO JSON ERROR bucket={bucket}: {type(exc).__name__}", flush=True)
+        raise HTTPException(status_code=502, detail="Invalid Supabase photo response.") from exc
 
 
 @app.get("/therapist/parents/{parent_id}/photo")
