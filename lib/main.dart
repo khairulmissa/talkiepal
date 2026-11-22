@@ -13,6 +13,7 @@ import 'services/current_kid.dart';
 import 'package:talkiepal/widgets/kids_bottom_nav.dart';
 import 'package:talkiepal/progress_page.dart';
 import 'package:talkiepal/parent/parent_home_screen.dart';
+import 'package:talkiepal/widgets/parental_gate.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -88,7 +89,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   Widget build(BuildContext context) {
     final kidName = widget.selectedKidName ?? CurrentKid.name ?? "Khairulmissa";
 
-    return Scaffold(
+        return PopScope(
+      canPop: false,
+      child: Scaffold(
       backgroundColor: _cream,
       body: Stack(
         children: [
@@ -183,6 +186,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           ),
         ],
       ),
+      ),
     );
   }
 
@@ -193,6 +197,19 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       decoration: BoxDecoration(color: color, shape: BoxShape.circle),
     );
   }
+
+    Future<void> _openParentDashboard() async {
+    final passed = await showParentalGate(context);
+    if (!passed || !mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        settings: const RouteSettings(name: 'parent_home'),
+        builder: (_) => const ParentHomeScreen(),
+      ),
+    );
+  }
+
 
   Widget _buildHeader(String kidName) {
     return Row(
@@ -241,14 +258,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         const SizedBox(width: 12),
         // Profile button (switch to parent profile)
                 // Profile button (switch to parent page)
-        GestureDetector(
-                    onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(
-              settings: const RouteSettings(name: 'parent_home'),
-              builder: (_) => const ParentHomeScreen(),
-            ),
-          ),
+                GestureDetector(
+          onTap: _openParentDashboard,
           child: Container(
             width: 54,
             height: 54,

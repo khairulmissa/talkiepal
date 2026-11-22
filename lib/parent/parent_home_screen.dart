@@ -1,13 +1,18 @@
+import 'dart:typed_data';
+
 import 'parent_upcoming_appointments.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
+import 'package:talkiepal/main.dart';
 import 'package:talkiepal/practice/widgets/score_dialog.dart';
 import 'package:talkiepal/progress_page.dart';
 import 'package:talkiepal/services/parent_report.dart';
 import 'package:talkiepal/services/parent_store.dart';
 import 'package:talkiepal/services/progress_store.dart';
+import 'package:talkiepal/services/current_kid.dart';
+import 'package:talkiepal/widgets/kids_bottom_nav.dart';
 import '../services/video_call_service.dart';
 
 import 'add_child_profile_screen.dart';
@@ -29,6 +34,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
   ChildProfile? child;
   ParentReport? report;
   bool isLoading = true;
+  bool isOpeningKid = false;
   String? error;
 
   @override
@@ -97,6 +103,36 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
     await _load(pick: childId is String ? childId : null);
     if (!mounted) return;
     if (result['findTherapist'] == true) openParentTab(context, ParentTab.therapist, from: ParentTab.home);
+  }
+
+  Future<void> _playAs(ChildProfile picked) async {
+    if (isOpeningKid) return;
+    setState(() => isOpeningKid = true);
+    Uint8List? photo = picked.photo;
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null) {
+      try {
+        final doc = await FirebaseFirestore.instance
+            .collection('users').doc(uid).collection('children').doc(picked.id).get();
+        final path = (doc.data()?['childPhotoPath'] ?? '').toString().trim();
+        if (path.isNotEmpty) {
+          photo = await Supabase.instance.client.storage.from('child-photos').download(path);
+        }
+      } catch (e) {
+        debugPrint('[Parent] could not load kid photo: $e');
+      }
+    }
+    if (!mounted) return;
+    setState(() => isOpeningKid = false);
+    CurrentKid.select(name: picked.name, id: picked.id, photo: photo);
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(
+        settings: const RouteSettings(name: kidsHomeRouteName),
+        builder: (_) => HomePage(selectedKidName: picked.name),
+      ),
+      (route) => false,
+    );
   }
 
   void _tell(String text) {
@@ -181,7 +217,12 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
         else if (child == null)
           _NoChildCard(onAdd: _addChild)
         else
-          _ChildCard(child: child!, report: report),
+          _ChildCard(
+            child: child!,
+            report: report,
+            isOpening: isOpeningKid,
+            onPlay: () => _playAs(child!),
+          ),
         _buildActions(),
         _buildUpcoming(),
         ParentCard(
@@ -468,8 +509,10 @@ class _NoChildCard extends StatelessWidget {
 class _ChildCard extends StatelessWidget {
   final ChildProfile child;
   final ParentReport? report;
+  final bool isOpening;
+  final VoidCallback onPlay;
 
-  const _ChildCard({required this.child, required this.report});
+  const _ChildCard({required this.child, required this.report, required this.isOpening, required this.onPlay});
 
   @override
   Widget build(BuildContext context) {
@@ -592,6 +635,34 @@ class _ChildCard extends StatelessWidget {
               ),
             ),
           ],
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: isOpening ? null : onPlay,
+              icon: isOpening
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Icon(Icons.sports_esports_rounded),
+              label: Text(
+                'Play as ${child.name}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: ParentColors.purple,
+                foregroundColor: Colors.white,
+                disabledBackgroundColor: ParentColors.purple.withValues(alpha: 0.6),
+                disabledForegroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
+              ),
+            ),
+          ),
         ],
       ),
     );
