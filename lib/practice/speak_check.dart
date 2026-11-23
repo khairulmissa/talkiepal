@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:talkiepal/services/hearing_service.dart';
+import 'package:talkiepal/services/pronunciation_result.dart';
 import 'package:talkiepal/services/speech_score.dart';
 import 'package:talkiepal/services/speech_service.dart';
 
@@ -10,8 +11,9 @@ import 'package:talkiepal/services/speech_service.dart';
 class SpeechCheck {
   final int score;
   final List<String> heard;
+  final PronunciationResult? pronunciation;
 
-  const SpeechCheck(this.score, this.heard);
+  const SpeechCheck(this.score, this.heard, {this.pronunciation});
 }
 
 /// Hold-to-talk for practice pages: the child holds SPEAK, talks, lets go,
@@ -79,6 +81,7 @@ mixin HoldToSpeak<T extends StatefulWidget> on State<T> {
     await hearing.start(
       // One word or letter: the phone listens in a way that suits short answers.
       shortAnswer: !target.contains(' '),
+      target: target,
       // Red (talk now) only while the microphone is really recording; back
       // to "get ready" while the phone starts listening again.
       onRecording: (recording) {
@@ -131,7 +134,12 @@ mixin HoldToSpeak<T extends StatefulWidget> on State<T> {
     setState(() {
       isListening = false;
     });
-    onSpeechChecked(SpeechCheck(scoreSpeech(target, heard), heard));
+
+    final wordScore = scoreSpeech(target, heard);
+    final pronunciation = heard.isEmpty ? null : hearing.lastPronunciation;
+    final score = pronunciation?.score ?? wordScore;
+    PronunciationResult.latest = pronunciation;
+    onSpeechChecked(SpeechCheck(score, heard, pronunciation: pronunciation));
   }
 
   /// Stops listening without a result, e.g. when moving to the next word.

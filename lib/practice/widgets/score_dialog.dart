@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:talkiepal/services/pronunciation_result.dart';
 
 const Color _pink = Color(0xFFEC407A);
 const Color _pinkDark = Color(0xFFC2185B);
@@ -44,6 +45,9 @@ Future<void> showScoreDialog(
 }) {
   final passed = score >= ScoreBand.pass;
   final heardNothing = heard.isEmpty;
+  final latest = PronunciationResult.latest;
+  final pronunciation = latest != null && latest.target == target.trim() ? latest : null;
+  final soundTip = heardNothing || score >= ScoreBand.great ? null : pronunciation?.tip;
 
   final String emoji;
   final String title;
@@ -67,12 +71,12 @@ Future<void> showScoreDialog(
     emoji = '👍';
     title = 'Good Job!';
     detail = 'You said "$target"!';
-    hint = 'Almost perfect. Try once more for 5 stars!';
+    hint = soundTip ?? 'Almost perfect. Try once more for 5 stars!';
   } else {
     emoji = '💪';
     title = 'Keep Trying!';
     detail = 'Let\'s say "$target" again';
-    hint = 'Listen first, then say it slowly.';
+    hint = soundTip ?? 'Listen first, then say it slowly.';
   }
 
   return showGeneralDialog(
@@ -130,7 +134,11 @@ Future<void> showScoreDialog(
                     const SizedBox(height: 6),
                     // What the phone heard, for parents and therapists.
                     Text(
-                      'I heard: "${heard.first}"',
+                      pronunciation == null
+                          ? 'I heard: "${heard.first}"'
+                          : pronunciation.mistakes.isEmpty
+                              ? 'All sounds clear ✓'
+                              : 'Sounds to fix: ${pronunciation.summary}',
                       textAlign: TextAlign.center,
                       style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _soft),
                     ),
