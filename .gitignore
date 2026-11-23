@@ -52,3 +52,6 @@ ai_backend/.env
 ai_backend/firebase-service-account.json
 **/firebase-service-account.json
 **/*firebase-adminsdk*.json
+
+ai_backend/venv/
+__pycache__/

@@ -3,59 +3,77 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart';
+import 'package:talkiepal/services/server_hearing_service.dart';
 
-/// Speech-to-text driven by a press-and-hold SPEAK button: [start] on press,
-/// [finish] on release.
-///
-/// Pages go through [HearingService.instance] so tests can swap in a fake.
 abstract class HearingService {
-  static HearingService instance = PhoneHearingService();
+  static HearingService instance = SmartHearingService();
 
-  /// Initialises recognition and requests microphone permission.
-  /// Returns false when unavailable or permission is denied.
   Future<bool> isAvailable();
 
-  /// Starts listening.
-  ///
-  /// [onRecording] is called with true once the microphone is actually
-  /// capturing audio and false while recognition restarts. Set [shortAnswer]
-  /// for single words or letters to use the short-phrase model.
   Future<void> start({void Function(bool isRecording)? onRecording, bool shortAnswer = false});
 
-  /// Stops listening and returns the recognised alternatives, best first.
-  /// Returns an empty list when nothing was heard.
   Future<List<String>> finish();
 
-  /// Stops immediately and discards anything heard.
   Future<void> stop();
 }
 
-/// On-device speech recognition (Google on Android).
-///
-/// Android's recogniser can stop on its own while the button is still held
-/// (late "busy"/"client" errors, short silences), so it is restarted until
-/// the child lets go.
-///
-/// The plugin reports "listening" immediately even when the recogniser is
-/// stuck, so only incoming sound levels are trusted as proof that the
-/// microphone is recording.
+class SmartHearingService implements HearingService {
+  final ServerHearingService server = ServerHearingService();
+  final PhoneHearingService phone = PhoneHearingService();
+
+  HearingService? _current;
+
+  Future<HearingService> _pick() async {
+    return await server.isReachable() ? server : phone;
+  }
+
+  @override
+  Future<bool> isAvailable() async {
+    final picked = await _pick();
+    return picked.isAvailable();
+  }
+
+  @override
+  Future<void> start({void Function(bool isRecording)? onRecording, bool shortAnswer = false}) async {
+    await _current?.stop();
+    final picked = await _pick();
+    _current = picked;
+    debugPrint('[STT] using ${picked == server ? 'speech server' : 'phone recogniser'}');
+    await picked.start(onRecording: onRecording, shortAnswer: shortAnswer);
+  }
+
+  @override
+  Future<List<String>> finish() async {
+    final current = _current;
+    _current = null;
+    if (current == null) return const [];
+    return current.finish();
+  }
+
+  @override
+  Future<void> stop() async {
+    final current = _current;
+    _current = null;
+    await current?.stop();
+  }
+}
+
 class PhoneHearingService implements HearingService {
-  static const int _maxRestarts = 5;
+  static const int _maxRestarts = 12;
   static const int _maxStartAttempts = 3;
   static const double _silentLevel = -100;
   static const String _localeId = 'en_US';
 
-  static const Duration _restartDelay = Duration(milliseconds: 300);
+  static const Duration _restartDelay = Duration(milliseconds: 200);
   static const Duration _firstSoundTimeout = Duration(milliseconds: 1200);
   static const Duration _retryDelay = Duration(milliseconds: 400);
   static const Duration _watchdogInterval = Duration(milliseconds: 500);
-  static const Duration _quietLimit = Duration(milliseconds: 1500);
+  static const Duration _quietLimit = Duration(milliseconds: 2500);
   static const Duration _releaseTail = Duration(milliseconds: 700);
   static const Duration _shortAnswerPoll = Duration(milliseconds: 100);
-  static const int _shortAnswerPolls = 10;
+  static const int _shortAnswerPolls = 15;
   static const Duration _finalResultTimeout = Duration(seconds: 3);
 
-  /// Errors that retrying will not fix.
   static const Set<String> _hardErrors = {
     'error_permission',
     'error_insufficient_permissions',
@@ -66,14 +84,15 @@ class PhoneHearingService implements HearingService {
   final SpeechToText _speech = SpeechToText();
   Future<bool>? _setUp;
 
-  /// True while the button is held (from [start] until [finish]/[stop]).
   bool _wanted = false;
   int _restarts = 0;
+  bool _restartPending = false;
 
   Completer<void>? _session;
   bool _hasStarted = false;
-  bool _gotFinalWords = false;
-  List<String> _heard = [];
+
+  final List<List<String>> _segments = [];
+  List<String> _partial = [];
 
   Completer<void>? _recording;
   DateTime? _lastSound;
@@ -83,13 +102,30 @@ class PhoneHearingService implements HearingService {
   void Function(bool)? _onRecording;
   bool _shortAnswer = false;
 
+  List<String> get _heard {
+    final parts = [
+      ..._segments,
+      if (_partial.isNotEmpty) _partial,
+    ];
+    if (parts.isEmpty) return const [];
+    if (parts.length == 1) return parts.first;
+
+    final before = parts.sublist(0, parts.length - 1).map((p) => p.first).join(' ');
+    return parts.last.map((last) => '$before $last').toSet().toList();
+  }
+
+  void _commitPartial() {
+    if (_partial.isEmpty) return;
+    _segments.add(_partial);
+    _partial = [];
+  }
+
   @override
   Future<bool> isAvailable() {
     return _setUp ??= _speech
         .initialize(onStatus: _onStatus, onError: (e) => _onError(e.errorMsg))
         .catchError((_) => false)
         .then((ok) {
-          // Allow a retry later, e.g. after permission is granted.
           if (!ok) _setUp = null;
           return ok;
         });
@@ -110,14 +146,17 @@ class PhoneHearingService implements HearingService {
     _listenEnded();
   }
 
-  /// Restarts listening while the button is held, otherwise ends the session.
   void _listenEnded() {
-    if (_wanted && !_gotFinalWords && _restarts < _maxRestarts) {
+    if (_wanted && _restarts < _maxRestarts) {
+      if (_restartPending) return;
+      _restartPending = true;
       _restarts++;
       debugPrint('[STT] stopped early, listening again ($_restarts)');
       final restartFor = _session;
       Future.delayed(_restartDelay, () async {
+        _restartPending = false;
         if (!_wanted || _session != restartFor) return;
+        _commitPartial();
         if (_speech.isListening) await _speech.cancel();
         await _beginListen(keepHeard: true);
       });
@@ -144,7 +183,9 @@ class PhoneHearingService implements HearingService {
 
     _wanted = true;
     _restarts = 0;
-    _heard = [];
+    _restartPending = false;
+    _segments.clear();
+    _partial = [];
     _maxLevel = _silentLevel;
 
     for (var attempt = 0; attempt < _maxStartAttempts && _wanted; attempt++) {
@@ -166,7 +207,6 @@ class PhoneHearingService implements HearingService {
     if (_wanted || !value) _onRecording?.call(value);
   }
 
-  /// Restarts listening if sound levels stop arriving while the button is held.
   void _startWatchdog() {
     _watchdog?.cancel();
     _watchdog = Timer.periodic(_watchdogInterval, (_) {
@@ -193,28 +233,33 @@ class PhoneHearingService implements HearingService {
   }
 
   void _onResult(SpeechRecognitionResult result) {
-    // Receiving words proves the listen started, even without a status event.
     _hasStarted = true;
 
     final words = [
       result.recognizedWords,
       for (final alt in result.alternates) alt.recognizedWords,
-    ].where((w) => w.trim().isNotEmpty).toSet().toList();
+    ].map((w) => w.trim()).where((w) => w.isNotEmpty).toSet().toList();
 
-    if (words.isNotEmpty) _heard = words;
-    if (result.finalResult && words.isNotEmpty) {
-      _gotFinalWords = true;
-      _completeSession();
+    if (words.isEmpty) return;
+
+    if (result.finalResult) {
+      if (_partial.isEmpty && _segments.isNotEmpty && listEquals(_segments.last, words)) return;
+      _partial = [];
+      _segments.add(words);
+      if (!_wanted) _completeSession();
+    } else {
+      _partial = words;
     }
   }
 
   Future<void> _beginListen({required bool keepHeard}) async {
-    if (!keepHeard) _heard = [];
+    if (!keepHeard) {
+      _segments.clear();
+      _partial = [];
+    }
     _hasStarted = false;
-    _gotFinalWords = false;
     _setRecording(false);
     _recording = Completer<void>();
-    // Start the quiet timer now so a listen that never sends sound is caught.
     _lastSound = DateTime.now();
     _session = Completer<void>();
 
@@ -223,12 +268,11 @@ class PhoneHearingService implements HearingService {
         onResult: _onResult,
         onSoundLevelChange: _onSound,
         listenOptions: SpeechListenOptions(
-          listenFor: const Duration(seconds: 10),
-          pauseFor: const Duration(seconds: 6),
+          listenFor: const Duration(seconds: 30),
+          pauseFor: const Duration(seconds: 10),
           localeId: _localeId,
           partialResults: true,
           cancelOnError: true,
-          // The "search" model handles single words and letters far better.
           listenMode: _shortAnswer ? ListenMode.search : ListenMode.dictation,
         ),
       );
@@ -242,10 +286,8 @@ class PhoneHearingService implements HearingService {
   Future<List<String>> finish() async {
     if (_session == null) return const [];
 
-    // Keep listening briefly after release so the last sound is not cut off.
     await Future<void>.delayed(_releaseTail);
 
-    // Short answers get up to an extra second to be recognised.
     if (_shortAnswer) {
       for (var i = 0; i < _shortAnswerPolls && _heard.isEmpty && _session != null && !_session!.isCompleted; i++) {
         await Future<void>.delayed(_shortAnswerPoll);
@@ -255,7 +297,11 @@ class PhoneHearingService implements HearingService {
     _wanted = false;
     _watchdog?.cancel();
     _setRecording(false);
-    if (_speech.isListening) await _speech.stop();
+    if (_speech.isListening) {
+      await _speech.stop();
+    } else {
+      _completeSession();
+    }
 
     final session = _session;
     if (session != null) {
@@ -263,8 +309,9 @@ class PhoneHearingService implements HearingService {
     }
     _session = null;
 
-    debugPrint('[STT] heard $_heard (restarted $_restarts times, loudest ${_maxLevel.toStringAsFixed(1)})');
-    return _heard;
+    final heard = _heard;
+    debugPrint('[STT] heard $heard (restarted $_restarts times, loudest ${_maxLevel.toStringAsFixed(1)})');
+    return heard;
   }
 
   @override
@@ -274,6 +321,8 @@ class PhoneHearingService implements HearingService {
     _setRecording(false);
     _completeSession();
     _session = null;
+    _segments.clear();
+    _partial = [];
     if (_speech.isListening) await _speech.cancel();
   }
 }

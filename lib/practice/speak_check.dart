@@ -33,10 +33,10 @@ mixin HoldToSpeak<T extends StatefulWidget> on State<T> {
   Timer? _maxHold;
 
   /// A press shorter than this is a tap, not a hold.
-  static const Duration _shortestHold = Duration(milliseconds: 450);
+  static const Duration _shortestHold = Duration(milliseconds: 300);
 
   /// Talking stops on its own after this long.
-  static const Duration _longestHold = Duration(seconds: 8);
+  static const Duration _longestHold = Duration(seconds: 20);
 
   /// The word or sentence the child should say.
   String get speakTarget;

@@ -41,8 +41,10 @@ app = FastAPI(
 
 
 from agora_routes import router as agora_router
+from speech_routes import router as speech_router, load_whisper_in_background
 
 app.include_router(agora_router)
+app.include_router(speech_router)
 
 # Secure appointment booking (parent -> FastAPI -> Firestore)
 # from talkiepal_booking_routes import router as booking_router
@@ -71,6 +73,7 @@ def warm_up_model():
 def start_warm_up():
     # Run in the background so the server starts immediately.
     threading.Thread(target=warm_up_model, daemon=True).start()
+    load_whisper_in_background()
 
 
 SYSTEM_PROMPT = """
