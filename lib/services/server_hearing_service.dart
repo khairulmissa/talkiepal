@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:record/record.dart';
 import 'package:talkiepal/config/api_config.dart';
 import 'package:talkiepal/services/hearing_service.dart';
+import 'package:talkiepal/services/pronunciation_result.dart';
 
 class ServerHearingService implements HearingService {
   ServerHearingService({http.Client? client}) : _client = client ?? http.Client();
@@ -29,6 +30,11 @@ class ServerHearingService implements HearingService {
   bool _shortAnswer = false;
   bool _active = false;
   bool _gotSound = false;
+  String _target = '';
+  PronunciationResult? _lastPronunciation;
+
+  @override
+  PronunciationResult? get lastPronunciation => _lastPronunciation;
 
   bool? _reachable;
   DateTime? _checkedAt;
@@ -64,10 +70,12 @@ class ServerHearingService implements HearingService {
   }
 
   @override
-  Future<void> start({void Function(bool isRecording)? onRecording, bool shortAnswer = false}) async {
+  Future<void> start({void Function(bool isRecording)? onRecording, bool shortAnswer = false, String? target}) async {
     if (!await isAvailable()) return;
     await _closeStream();
 
+    _target = target?.trim() ?? '';
+    _lastPronunciation = null;
     _pcm.clear();
     _onRecording = onRecording;
     _shortAnswer = shortAnswer;
@@ -119,6 +127,7 @@ class ServerHearingService implements HearingService {
     try {
       final request = http.MultipartRequest('POST', Uri.parse(transcribeUrl))
         ..fields['short'] = _shortAnswer ? 'true' : 'false'
+        ..fields['target'] = _target
         ..files.add(http.MultipartFile.fromBytes('audio', wav, filename: 'speech.wav'));
       final streamed = await _client.send(request).timeout(_uploadTimeout);
       final response = await http.Response.fromStream(streamed).timeout(_uploadTimeout);
@@ -136,6 +145,12 @@ class ServerHearingService implements HearingService {
           .toSet()
           .toList();
       debugPrint('[STT] server heard $alternatives (${body['reason']})');
+
+      final pronunciation = body['pronunciation'];
+      if (pronunciation is Map<String, dynamic> && _target.isNotEmpty) {
+        _lastPronunciation = PronunciationResult.fromJson(_target, pronunciation);
+        debugPrint('[STT] pronunciation ${_lastPronunciation!.score}% ${_lastPronunciation!.summary}');
+      }
       return alternatives;
     } catch (e) {
       debugPrint('[STT] could not reach speech server: $e');
@@ -147,6 +162,7 @@ class ServerHearingService implements HearingService {
   @override
   Future<void> stop() async {
     _active = false;
+    _lastPronunciation = null;
     await _closeStream();
     _pcm.clear();
     _onRecording?.call(false);

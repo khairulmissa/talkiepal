@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart';
+import 'package:talkiepal/services/pronunciation_result.dart';
 import 'package:talkiepal/services/server_hearing_service.dart';
 
 abstract class HearingService {
@@ -10,11 +11,13 @@ abstract class HearingService {
 
   Future<bool> isAvailable();
 
-  Future<void> start({void Function(bool isRecording)? onRecording, bool shortAnswer = false});
+  Future<void> start({void Function(bool isRecording)? onRecording, bool shortAnswer = false, String? target});
 
   Future<List<String>> finish();
 
   Future<void> stop();
+
+  PronunciationResult? get lastPronunciation;
 }
 
 class SmartHearingService implements HearingService {
@@ -22,6 +25,10 @@ class SmartHearingService implements HearingService {
   final PhoneHearingService phone = PhoneHearingService();
 
   HearingService? _current;
+  PronunciationResult? _lastPronunciation;
+
+  @override
+  PronunciationResult? get lastPronunciation => _lastPronunciation;
 
   Future<HearingService> _pick() async {
     return await server.isReachable() ? server : phone;
@@ -34,12 +41,13 @@ class SmartHearingService implements HearingService {
   }
 
   @override
-  Future<void> start({void Function(bool isRecording)? onRecording, bool shortAnswer = false}) async {
+  Future<void> start({void Function(bool isRecording)? onRecording, bool shortAnswer = false, String? target}) async {
     await _current?.stop();
+    _lastPronunciation = null;
     final picked = await _pick();
     _current = picked;
     debugPrint('[STT] using ${picked == server ? 'speech server' : 'phone recogniser'}');
-    await picked.start(onRecording: onRecording, shortAnswer: shortAnswer);
+    await picked.start(onRecording: onRecording, shortAnswer: shortAnswer, target: target);
   }
 
   @override
@@ -47,13 +55,16 @@ class SmartHearingService implements HearingService {
     final current = _current;
     _current = null;
     if (current == null) return const [];
-    return current.finish();
+    final heard = await current.finish();
+    _lastPronunciation = current.lastPronunciation;
+    return heard;
   }
 
   @override
   Future<void> stop() async {
     final current = _current;
     _current = null;
+    _lastPronunciation = null;
     await current?.stop();
   }
 }
@@ -83,6 +94,9 @@ class PhoneHearingService implements HearingService {
 
   final SpeechToText _speech = SpeechToText();
   Future<bool>? _setUp;
+
+  @override
+  PronunciationResult? get lastPronunciation => null;
 
   bool _wanted = false;
   int _restarts = 0;
@@ -174,7 +188,7 @@ class PhoneHearingService implements HearingService {
   }
 
   @override
-  Future<void> start({void Function(bool isRecording)? onRecording, bool shortAnswer = false}) async {
+  Future<void> start({void Function(bool isRecording)? onRecording, bool shortAnswer = false, String? target}) async {
     if (!await isAvailable()) return;
     _onRecording = onRecording;
     _shortAnswer = shortAnswer;

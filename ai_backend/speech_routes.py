@@ -8,6 +8,8 @@ import numpy as np
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
+import pronunciation
+
 router = APIRouter(prefix="/speech", tags=["speech"])
 
 WHISPER_MODEL = os.getenv("WHISPER_MODEL", "base.en")
@@ -38,12 +40,25 @@ _model_lock = threading.Lock()
 _run_lock = threading.Lock()
 
 
+class SoundMistake(BaseModel):
+    expected: str
+    heard: str | None = None
+
+
+class Pronunciation(BaseModel):
+    score: int
+    expected: list[str]
+    heard: list[str]
+    mistakes: list[SoundMistake]
+
+
 class TranscribeResponse(BaseModel):
     text: str
     alternatives: list[str]
     heard: bool
     reason: str
     seconds: float
+    pronunciation: Pronunciation | None = None
 
 
 def get_model():
@@ -68,6 +83,7 @@ def load_whisper_in_background():
             print(f"WHISPER READY: {WHISPER_MODEL}", flush=True)
         except Exception as error:
             print(f"WHISPER NOT LOADED: {error}", flush=True)
+        pronunciation.load_in_background()
 
     threading.Thread(target=load, daemon=True).start()
 
@@ -185,11 +201,20 @@ def alternatives_for(text: str) -> list[str]:
 
 @router.get("/health")
 def speech_health():
-    return {"model": WHISPER_MODEL, "ready": _model is not None}
+    return {
+        "model": WHISPER_MODEL,
+        "ready": _model is not None,
+        "phoneme_model": pronunciation.PHONEME_MODEL,
+        "phoneme_ready": pronunciation.is_ready(),
+    }
 
 
 @router.post("/transcribe", response_model=TranscribeResponse)
-def transcribe(audio: UploadFile = File(...), short: bool = Form(False)):
+def transcribe(
+    audio: UploadFile = File(...),
+    short: bool = Form(False),
+    target: str = Form(""),
+):
     data = audio.file.read(MAX_UPLOAD_BYTES + 1)
     if len(data) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="Recording is too long")
@@ -222,4 +247,25 @@ def transcribe(audio: UploadFile = File(...), short: bool = Form(False)):
         heard=True,
         reason="ok",
         seconds=seconds,
+        pronunciation=check_pronunciation(prepared, target),
+    )
+
+
+def check_pronunciation(audio: np.ndarray, target: str):
+    target = target.strip()
+    if not target or not pronunciation.is_ready():
+        return None
+    try:
+        result = pronunciation.assess(audio, target)
+    except Exception as error:
+        print(f"PHONEME CHECK FAILED: {error}", flush=True)
+        return None
+    if result is None:
+        return None
+    print(f"PHONEME {target!r}: expected {result['expected']} heard {result['ipa']!r} -> {result['score']}", flush=True)
+    return Pronunciation(
+        score=result["score"],
+        expected=result["expected"],
+        heard=result["heard"],
+        mistakes=[SoundMistake(**m) for m in result["mistakes"]],
     )
