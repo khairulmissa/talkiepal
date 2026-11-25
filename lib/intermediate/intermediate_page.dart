@@ -19,7 +19,7 @@ class IntermediatePage extends StatelessWidget {
 
   
   static Map<String, String> get topicEmojis => {
-        for (final (title, emoji, _) in StudyContentService.intermediateDefaults) title: emoji,
+        for (final s in StudyContentService.menuFor(_level)) s.title: s.emoji,
       };
 
   
@@ -36,16 +36,6 @@ class IntermediatePage extends StatelessWidget {
             for (final q in s.questions) [q.question, q.answer, ...q.wrong],
           ],
         ),
-      ),
-    );
-  }
-
-  void _showComingSoon(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Mini Stories is coming soon! 📖'),
-        backgroundColor: Color(0xFFFF8A3D),
-        duration: Duration(seconds: 1),
       ),
     );
   }
@@ -70,11 +60,6 @@ class IntermediatePage extends StatelessWidget {
                     title: s.title,
                     onTap: (context) => _openTopic(context, s),
                   ),
-                LevelTopic(
-                  emoji: '📖',
-                  title: 'Mini Stories',
-                  onTap: (context) => _showComingSoon(context),
-                ),
               ],
             ),
           ],

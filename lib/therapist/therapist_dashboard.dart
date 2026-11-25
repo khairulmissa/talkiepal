@@ -199,13 +199,15 @@ class TherapistDashboard extends StatelessWidget {
                         const SizedBox(height: 16),
                         const TherapistSectionTitle(title: 'Quick access'),
                         const SizedBox(height: 10),
-                        GridView.count(
+                          GridView(
                           shrinkWrap: true,
                           physics: const NeverScrollableScrollPhysics(),
-                          crossAxisCount: 2,
-                          mainAxisSpacing: 10,
-                          crossAxisSpacing: 10,
-                          childAspectRatio: 1.65,
+                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            mainAxisSpacing: 10,
+                            crossAxisSpacing: 10,
+                            mainAxisExtent: 112,
+                          ),
                           children: [
                             TherapistShortcut(
                               title: 'Schedule',

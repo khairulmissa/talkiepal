@@ -23,8 +23,8 @@ class SpecialSoundPage extends StatelessWidget {
 
  
   static Map<String, String> get topicEmojis => {
-    for (final (sound, emoji, _, _) in StudyContentService.specialSoundDefaults)
-      ...{'Sound $sound': emoji, 'Mini Challenge $sound': '🏆'},
+    for (final s in StudyContentService.menuFor('special_sound'))
+      ...{'Sound ${s.title}': s.emoji, 'Mini Challenge ${s.title}': '🏆'},
   };
 
   static List<PracticeExercise> _toExercises(List<StudyWord> words) => [

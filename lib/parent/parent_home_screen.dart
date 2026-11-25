@@ -11,6 +11,7 @@ import 'package:talkiepal/progress_page.dart';
 import 'package:talkiepal/services/parent_report.dart';
 import 'package:talkiepal/services/parent_store.dart';
 import 'package:talkiepal/services/progress_store.dart';
+import 'package:talkiepal/services/study_content_service.dart';
 import 'package:talkiepal/services/current_kid.dart';
 import 'package:talkiepal/widgets/kids_bottom_nav.dart';
 import '../services/video_call_service.dart';
@@ -76,6 +77,7 @@ class _ParentHomeScreenState extends State<ParentHomeScreen> {
       report = null;
     });
     List<SessionRecord> sessions;
+    await StudyContentService.refreshMenus();
     try {
       sessions = await ProgressStore.instance.sessions(childId: picked.id);
     } catch (e) {
