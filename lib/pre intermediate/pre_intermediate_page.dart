@@ -20,7 +20,7 @@ class PreIntermediatePage extends StatelessWidget {
 
  
   static Map<String, String> get topicEmojis => {
-        for (final (title, emoji, _) in StudyContentService.preIntermediateDefaults) title: emoji,
+        for (final s in StudyContentService.menuFor(_level)) s.title: s.emoji,
       };
 
   

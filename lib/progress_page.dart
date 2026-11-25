@@ -9,6 +9,7 @@ import 'package:talkiepal/practice/widgets/score_dialog.dart';
 import 'package:talkiepal/pre intermediate/pre_intermediate_page.dart';
 import 'package:talkiepal/services/current_kid.dart';
 import 'package:talkiepal/services/progress_store.dart';
+import 'package:talkiepal/services/study_content_service.dart';
 import 'package:talkiepal/special_sound/specialsound_page.dart';
 import 'package:talkiepal/widgets/dino_mascot.dart';
 import 'package:talkiepal/widgets/kids_bottom_nav.dart';
@@ -73,7 +74,7 @@ class ProgressData {
   });
 
   // Every level with its topics, in menu order.
-  static final List<(PracticeLook, List<String>)> _levels = [
+  static List<(PracticeLook, List<String>)> get _levels => [
     (PracticeLook.beginner, BeginnerPage.topics),
     (PracticeLook.preIntermediate, PreIntermediatePage.topics),
     (PracticeLook.intermediate, IntermediatePage.topics),
@@ -218,6 +219,7 @@ class _ProgressPageState extends State<ProgressPage> {
 
   Future<void> _load() async {
     List<SessionRecord> sessions;
+    await StudyContentService.refreshMenus();
     try {
       sessions = await ProgressStore.instance.sessions();
     } catch (e) {

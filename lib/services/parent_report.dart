@@ -180,7 +180,7 @@ class ParentReport {
 
   static const int _chartWeeks = 6;
 
-  static final List<(PracticeLook, Map<String, String>)> levels = [
+  static List<(PracticeLook, Map<String, String>)> get levels => [
     (PracticeLook.beginner, BeginnerPage.topicEmojis),
     (PracticeLook.preIntermediate, PreIntermediatePage.topicEmojis),
     (PracticeLook.intermediate, IntermediatePage.topicEmojis),

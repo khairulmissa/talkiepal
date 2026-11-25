@@ -4,6 +4,7 @@ import 'package:talkiepal/parent/widgets/parent_ui.dart';
 import 'package:talkiepal/practice/widgets/score_dialog.dart';
 import 'package:talkiepal/services/parent_report.dart';
 import 'package:talkiepal/services/progress_store.dart';
+import 'package:talkiepal/services/study_content_service.dart';
 
 // Colours of the parent area.
 const Color _purple = ParentColors.purple;
@@ -104,6 +105,7 @@ class _ParentProgressScreenState extends State<ParentProgressScreen> {
       error = null;
     });
     try {
+      await StudyContentService.refreshMenus();
       final sessions = await ProgressStore.instance.sessions(childId: picked.id);
       if (!mounted || child != picked) return;
       setState(() {

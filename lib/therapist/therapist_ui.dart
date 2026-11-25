@@ -100,19 +100,25 @@ class TherapistShortcut extends StatelessWidget {
     borderRadius: BorderRadius.circular(17),
     child: InkWell(onTap: onTap, borderRadius: BorderRadius.circular(17),
       child: Container(
-        padding: const EdgeInsets.all(13),
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(borderRadius: BorderRadius.circular(17),
           border: Border.all(color: TherapistColors.border)),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Container(padding: const EdgeInsets.all(9),
-            decoration: BoxDecoration(color: iconBackground, borderRadius: BorderRadius.circular(12)),
-            child: Icon(icon, color: TherapistColors.purple, size: 20)),
-          const Spacer(),
-          Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: TherapistColors.text)),
-          const SizedBox(height: 3),
-          Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 10, color: TherapistColors.muted)),
-        ]),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Container(padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(color: iconBackground, borderRadius: BorderRadius.circular(12)),
+              child: Icon(icon, color: TherapistColors.purple, size: 20)),
+            Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+              Text(title, maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: TherapistColors.text)),
+              const SizedBox(height: 2),
+              Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 10, color: TherapistColors.muted)),
+            ]),
+          ],
+        ),
       ),
     ),
   );

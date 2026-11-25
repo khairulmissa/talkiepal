@@ -25,11 +25,10 @@ class BeginnerPage extends StatelessWidget {
   ];
 
   /// Every topic of this level, as named on the results screen, with its picture.
-  /// (Progress page & parent report masih guna senarai asal ni.)
   static Map<String, String> get topicEmojis => {
         'Alphabets': '🔤',
         'Numbers': '🔢',
-        for (final (title, emoji, _) in StudyContentService.beginnerDefaults) title: emoji,
+        for (final s in StudyContentService.menuFor('beginner')) s.title: s.emoji,
       };
 
   /// Returns an unmodifiable list of topics to prevent accidental mutations.

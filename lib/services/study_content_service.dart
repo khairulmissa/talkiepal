@@ -258,8 +258,32 @@ abstract final class StudyContentService {
       .map(_sorted);
 
  
-  static Stream<List<StudySubtopic>> watchMenu(String level) =>
-      watchPublished(level).map((list) => list.isEmpty ? defaultsFor(level) : list);
+  static Stream<List<StudySubtopic>> watchMenu(String level) => watchPublished(level).map((list) {
+        final menu = list.isEmpty ? defaultsFor(level) : list;
+        _menus[level] = menu;
+        return menu;
+      });
+
+  static final Map<String, List<StudySubtopic>> _menus = {};
+
+  static List<StudySubtopic> menuFor(String level) => _menus[level] ?? defaultsFor(level);
+
+  static Future<void> refreshMenus() async {
+    await Future.wait([
+      for (final level in levels.keys)
+        () async {
+          try {
+            final snap = await _col
+                .where('level', isEqualTo: level)
+                .where('published', isEqualTo: true)
+                .get()
+                .timeout(const Duration(seconds: 6));
+            final list = _sorted(snap);
+            _menus[level] = list.isEmpty ? defaultsFor(level) : list;
+          } catch (_) {}
+        }(),
+    ]);
+  }
 
   
   static Future<void> save(StudySubtopic subtopic) async {
